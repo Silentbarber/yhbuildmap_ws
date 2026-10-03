@@ -4,6 +4,8 @@
 
 当前 `feature/dynamic-object-filtering` 分支开展动态物体过滤研究。baseline 固定为 `handheld-mid360-2026-10-03` / `9a11f2e`；离线可见性过滤及角度保护候选均完成四包运行，尚待用户场景验收。方法、参数、结果和复现命令见 [动态过滤候选](docs/DYNAMIC_FILTERING.md)，完整目标见 [动态过滤 Goal](docs/DYNAMIC_FILTERING_GOAL.md)。建图入口默认仍运行 baseline；增加 `--dynamic-filter` 现在自动启用射线角度包围保护，原 `--dynamic-angular-support` 仍兼容，`--dynamic-max-hit-bins 1` 可生成保守对照。四包批处理 `run_dynamic_filtering.py` 也默认开启角度保护；旧版外插仅通过明确的实验参数复现。局部三维时间检查工具在 `viewer/temporal.html`。另有设备随动补充研究工具，四包没有得到持续的追加删除证据，未合入默认链路。
 
+`scripts/audit_ray_footprint.py` 可重算全部已删除点及保留控制点的原始采样证据，检查三条实测支撑射线的物理间距，并对照固定几何样本。四包间距审计没有提供足够证据替换当前候选，因此该工具只生成诊断数据，不修改地图。
+
 ## 算法与处理流程
 
 1. 将录包中的 `/livox/lidar` PointCloud2 转换为 Livox CustomMsg，保留点时间并按偏移时间排序；IMU 使用 `/livox/imu`。

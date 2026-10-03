@@ -314,3 +314,65 @@ ROS1 入口现在只需 `--dynamic-filter` 即启用角度保护。四包批处�
 本机 `results/dynamic_filtering/default_entry_validation.json` 记录了真实四包批处理默认参数的缓存复现：四张保留/移除 PCD SHA256 均与当前角度保护候选一致，精确分区审计通过。临时输出已清理，原地图和缓存不变。这里验证了批处理实际运行和 ROS1 参数传递；没有新增四包整段 ROS 回放，也没有完成逐对象人工验收。
 
 本轮 `bash scripts/test_release.sh` 通过 65 项 Python 测试及 100 轮原生 MID360 输入回归，全部命令行帮助入口通过。新增测试覆盖设备随动与实际空位联合证据、遮挡与缺失方向、重复命中保护、外来轨迹拒绝，以及批处理和 ROS1 默认参数传递。加强父地图掩码检查的测试样本后，设备随动模块的 11 项测试再次通过。这些检查证明实现和数据关联符合已定义规则，不能代替真实场景动态物体与静态结构验收。
+
+## 支撑射线的物理间距
+
+角度包围仍是一种插值：三个远处回波可以围住近处细杆的方向，却都没有打到细杆。新增 `scripts/audit_ray_footprint.py` 直接计算候选点到三条实测支撑射线的垂直距离，并取其中最大值作为支撑半径。测试中的 10 m 处 2 cm 半径静态细杆被三条约 5.8 cm 外的射线绕过，原角度规则仍给出自由空间证据；这是受控的风险样例，不是四包中已确认的误删实例。
+
+四包审计读取全部捕获输出帧并核对同时间戳位姿，复现原 1,905 个证据帧。覆盖所有 34,939 个删除候选及每包 10,000 个固定随机种子的保留控制点。源缓存、元数据、地图、轨迹和父掩码哈希均校验；被审计点的原始 `hit_bins`、`free_bins`、首次/末次自由证据和删除分类逐值复现，再分别限制三条射线的支撑半径。原保留点不会因收紧自由证据而新增删除。
+
+| 包 | 原删除候选 | 2 cm 限制后仍支持删除 | 3 cm 限制后仍支持删除 | 5 cm 限制后仍支持删除 | 5 cm 恢复候选 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 10-01 21:52:47 | 14412 | 5749 | 11271 | 14136 | 276 |
+| 10-02 16:21:02 | 6393 | 4082 | 5521 | 6351 | 42 |
+| 10-02 16:23:42 | 7467 | 4874 | 6054 | 7198 | 269 |
+| 10-02 16:27:44 | 6667 | 2173 | 4216 | 6119 | 548 |
+
+这里的恢复是诊断掩码中的变化，没有写出新的 PCD。限制不是实际激光束宽，也不包括位姿不确定度；没有语义静态或动态标签。实际支撑半径的最大值约为 7.4 / 7.6 / 10.1 / 9.5 cm，说明固定角度阈值对应的物理间距确实会变化。
+
+`--structure-only` 复用完整审计数组，对照原结构审计使用的同一套局部 PCA 抽样和固定参考面片，并重新校验源哈希、整个原删除集合的覆盖及诊断分类。5 cm 限制后，四包平面样本的删除量是 47→47、3→3、12→12、22→20；第三包待确认的 78 点参考区域仍删除 75 点。2 cm 限制虽分别恢复 16 / 0 / 10 / 14 个几何平面样本，却会恢复大量尚未确认类别的点。不能据此宣称静态结构质量提高或动态过滤更好，当前不把间距限制合入默认链路。
+
+本机产物位于 `results/dynamic_filtering/ray_footprint_v1/<id>/`。`point_audit.npz` 保存原 baseline 索引、各间距的时间段证据与诊断掩码；`report.json` 保存原证据复现及间距统计；`structural_report.json` 保存固定几何对照。四包证据审计约 28.8 / 15.0 / 24.5 / 10.5 s，串行同一进程累计峰值 RSS 不超过 479 MiB。产物约 1.3 MiB，未复制整包扫描或地图；四张 baseline、候选 PCD 和轨迹保持原哈希。耗时不包含另行执行的结构比较，也不包含首次前端回放。
+
+复现完整审计，然后复用其结果比较结构：
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_footprint.py \
+  --data-root /path/to/existing/buildmap_test_ws \
+  --evidence-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/angular_guard \
+  --review-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/temporal_review \
+  --output-root "$PWD/results/ray_footprint_trial"
+
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_footprint.py \
+  --data-root /path/to/existing/buildmap_test_ws \
+  --evidence-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/angular_guard \
+  --review-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/temporal_review \
+  --output-root "$PWD/results/ray_footprint_trial" --structure-only
+```
+
+输出目录必须是首次审计的新位置；结构比较要求已有完整间距审计，且不能覆盖已有结构报告。最新 `bash scripts/test_release.sh` 通过 77 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。新增 12 项测试覆盖细杆绕射线风险样例、物理范围缩放、最远射线约束、坐标变换不变性、缺测、完整缓存重放、源篡改拒绝和结构报告分类核对；仍未进行语义场景验收或新增整包 ROS 回放。
+
+### 帧末射线原点近似
+
+进一步检查前端代码 `LaserMapping::PublishFrameWorld()`：四包都设置 `dense_publish_en=true`，发布 `scan_undistort_` 经帧末位姿转换后的世界点，消息时间戳是 `lidar_end_time_`。当前缓存只有 XYZI 及帧时间，因此过滤用所有点共有的帧末雷达位置作射线原点；它不能恢复每个点实际发射时刻的原点。去畸变后的物体坐标与实测回波有关，但从共同原点连接的射线仍是近似。
+
+`--origin-motion-only` 对已完成间距审计的四包轨迹做独立诊断。检查地图、轨迹和外参配置哈希，含雷达相对 IMU 的平移杆臂；仅统计相邻间隔 75–125 ms 的优化帧末位姿：
+
+| 包 | 约 0.1 s 相邻位姿对 | 原点位移中位数 | 95 分位 | 最大值 |
+| --- | ---: | ---: | ---: | ---: |
+| 10-01 21:52:47 | 2246 | 2.25 cm | 6.14 cm | 10.28 cm |
+| 10-02 16:21:02 | 1260 | 2.73 cm | 4.74 cm | 5.88 cm |
+| 10-02 16:23:42 | 2381 | 2.03 cm | 4.25 cm | 6.35 cm |
+| 10-02 16:27:44 | 878 | 6.71 cm | 11.45 cm | 14.43 cm |
+
+这些是相邻帧末原点的位移，既不是实际逐点原点误差，也不是扫描内部运动的真值或误删率。第四包的运动尺度说明，只收紧 2–5 cm 间距并不能修正共有原点的近似。下一步应研究从 bag 的点时间与完整 IMU 运动恢复逐点射线原点，并与固定 baseline 保持坐标一致；不能根据这个表断定所有当前删除都错误。缓存不足以直接做这项修正，需先验证 raw 点时间、去畸变与外参的关联，再决定局部重建或增加专用捕获格式。
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_footprint.py \
+  --data-root /path/to/existing/buildmap_test_ws \
+  --evidence-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/angular_guard \
+  --review-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/temporal_review \
+  --output-root "$PWD/results/ray_footprint_trial" --origin-motion-only
+```
+
+`origin_motion_report.json` 保存上述独立诊断，不改变地图。加入旋转杆臂和长位姿间隔测试后，间距审计模块的 14 项测试再次通过；这个后续诊断不构成原 77 项整套测试已重新运行。
