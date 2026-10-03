@@ -2,6 +2,8 @@
 
 面向 Livox MID360 手持建图的 ROS1 Faster-LIO 适配与离线地图优化。这是 2026-10-03 在四个录制包上验证、经用户肉眼验收的版本，默认后端为 `observation_geometry`。
 
+当前 `feature/dynamic-object-filtering` 分支开展动态物体过滤研究。baseline 固定为 `handheld-mid360-2026-10-03` / `9a11f2e`；目标、初步方法筛选和验收要求见 [动态过滤 Goal](docs/DYNAMIC_FILTERING_GOAL.md)。该分支目前尚未交付经过四包验收的动态过滤结果，下面的建图入口仍运行 baseline 流程。
+
 ## 算法与处理流程
 
 1. 将录包中的 `/livox/lidar` PointCloud2 转换为 Livox CustomMsg，保留点时间并按偏移时间排序；IMU 使用 `/livox/imu`。

@@ -1,0 +1,61 @@
+{
+  "baseline_commit": "9a11f2ec19575c6b6ca2f8abf99abb0f5452e82e",
+  "baseline_tag": "handheld-mid360-2026-10-03",
+  "branch": "feature/dynamic-object-filtering",
+  "inventory_date": "2026-10-03",
+  "paths_relative_to": "existing experiment data root; data are not included in this repository",
+  "recordings": [
+    {
+      "id": "215247",
+      "bag": "test_1301_2026-10-01-21-52-47.bag",
+      "calibration": "raw",
+      "frontend": "results/faster_lio_ghosting_diagnosis/215247/replay_observability",
+      "backend": "results/faster_lio_robustness/215247/coverage_geometry_v5",
+      "frames": 2253,
+      "baseline_points": 589414,
+      "capture_chunks": 12,
+      "capture_bytes": 478016672,
+      "map_sha256": "1061d838de995e97b6cc26dd8b3d0cc955eb1261bef658f621399bd135e3c3b0",
+      "trajectory_sha256": "62bfca120a9c785acbc1b0a9320532d594e0d41ae935277eda10155531d56185"
+    },
+    {
+      "id": "162102",
+      "bag": "test_1301_2026-10-02-16-21-02.bag",
+      "calibration": "pitch25",
+      "frontend": "results/faster_lio_robustness/162102/regression_frontend",
+      "backend": "results/faster_lio_robustness/162102/coverage_geometry_v5",
+      "frames": 1261,
+      "baseline_points": 517521,
+      "capture_chunks": 7,
+      "capture_bytes": 320122700,
+      "map_sha256": "04050aa031dc57b3bec8d449e5f53b1fc7a68f5b525a7d19fc8bdca029dce39f",
+      "trajectory_sha256": "d9f0d2a2ddb41940b14bb838591aaaae076f9f4b67405c0a8415350a31fa1fad"
+    },
+    {
+      "id": "162342",
+      "bag": "test_1301_2026-10-02-16-23-42.bag",
+      "calibration": "pitch25",
+      "frontend": "results/faster_lio_robustness/162342/delivery/frontend",
+      "backend": "results/faster_lio_robustness/162342/coverage_geometry_v5",
+      "frames": 2387,
+      "baseline_points": 645399,
+      "capture_chunks": 12,
+      "capture_bytes": 498823056,
+      "map_sha256": "74c149b474ca0c9e6eadbf33701f7f2429838ea93077a6b7065be6edf1e5b0bd",
+      "trajectory_sha256": "58a4ba5cc2b980103b988cd6f9c651e6b93a2a04d4e3cf7a885dc2b622f307ff"
+    },
+    {
+      "id": "162744",
+      "bag": "test_1301_2026-10-02-16-27-44.bag",
+      "calibration": "pitch25",
+      "frontend": "results/faster_lio_robustness/162744/regression_frontend",
+      "backend": "results/faster_lio_robustness/162744/coverage_geometry_v5",
+      "frames": 879,
+      "baseline_points": 503873,
+      "capture_chunks": 5,
+      "capture_bytes": 216159220,
+      "map_sha256": "1d5fd30dd619d6a3b080b2a42b393f5289805b6d86804167e600715f6f726f92",
+      "trajectory_sha256": "de5683a788013abd9db357d52e91a799b63a250ba72be9b93664ec08e5f1ebea"
+    }
+  ]
+}
