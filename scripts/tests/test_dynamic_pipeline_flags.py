@@ -77,9 +77,15 @@ class PipelineFlagsTest(unittest.TestCase):
         command = next(command for command in self.commands if pathlib.Path(command[1]).name == 'filter_dynamic_map.py')
         self.assertNotIn('--require-angular-support', command)
 
+    def test_point_time_groups_reach_filter(self):
+        self.invoke('--dynamic-filter', '--dynamic-point-time-groups-ms', '5')
+        command = next(command for command in self.commands if pathlib.Path(command[1]).name == 'filter_dynamic_map.py')
+        self.assertEqual(command[command.index('--point-time-groups-ms')+1], '5.0')
+
     def test_dynamic_setting_without_filter_fails_before_output(self):
         for arguments in [('--dynamic-angular-support',), ('--dynamic-max-hit-bins', '3'),
-                          ('--dynamic-allow-angular-extrapolation',)]:
+                          ('--dynamic-allow-angular-extrapolation',),
+                          ('--dynamic-point-time-groups-ms', '5')]:
             with self.subTest(arguments=arguments), self.assertRaises(SystemExit):
                 self.invoke(*arguments)
         self.assertFalse(self.output.exists())

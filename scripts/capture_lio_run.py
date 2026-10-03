@@ -45,7 +45,9 @@ def cloud_array(msg):
 def cloud_point_time_ms(msg):
     """Return the estimator's per-point time field when the output preserves it."""
     data = cloud_fields(msg)
-    for name in ("curvature", "time", "timestamp"):
+    # PCL's PointXYZINormal curvature and compatible time fields are offsets
+    # in milliseconds. Raw Livox absolute timestamps are audited separately.
+    for name in ("curvature", "time"):
         if name in data.dtype.names:
             values = np.asarray(data[name], dtype=np.float32).reshape(-1)
             if len(values) == len(data):

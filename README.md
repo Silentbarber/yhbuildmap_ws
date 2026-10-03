@@ -6,6 +6,8 @@
 
 `scripts/audit_ray_footprint.py` 可重算全部已删除点及保留控制点的原始采样证据，检查三条实测支撑射线的物理间距，并对照固定几何样本。四包间距审计没有提供足够证据替换当前候选，因此该工具只生成诊断数据，不修改地图。
 
+新的 ROS1 捕获会保留 Livox 点时间；在完成带 `point_time_ms` 的新缓存验证后，可通过 `--dynamic-point-time-groups-ms 5`（或批处理的 `--point-time-groups-ms 5`）试验逐点雷达原点插值。该开关要求完整点时间数组，默认关闭，不改变现有四包候选。
+
 ## 算法与处理流程
 
 1. 将录包中的 `/livox/lidar` PointCloud2 转换为 Livox CustomMsg，保留点时间并按偏移时间排序；IMU 使用 `/livox/imu`。

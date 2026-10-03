@@ -118,6 +118,24 @@ def ray_evidence(candidate_points, measured_points, origin, angle_deg=.4,
     return hit, free
 
 
+def grouped_ray_evidence(candidate_points, measured_points, groups, angle_deg=.4,
+                         hit_distance=.10, free_margin=.20, require_angular_support=False):
+    """Combine ray evidence from short groups with their own interpolated origins."""
+    hit = np.zeros(len(candidate_points), dtype=bool)
+    free = np.zeros(len(candidate_points), dtype=bool)
+    if not groups:
+        return hit, free
+    for indices, origin, _ in groups:
+        if len(indices) < 3:
+            continue
+        group_hit, group_free = ray_evidence(candidate_points, measured_points[indices], origin,
+            angle_deg, hit_distance, free_margin, require_angular_support=require_angular_support)
+        hit |= group_hit
+        free |= group_free
+        free &= ~hit
+    return hit, free
+
+
 def removal_mask(hit_bins, free_bins, first_free, last_free, min_free_bins=4,
                  free_ratio=.8, min_span=6, max_hit_bins=3):
     total = hit_bins.astype(np.float64) + free_bins
@@ -142,6 +160,8 @@ def main():
     parser.add_argument('--min-span', type=float, default=6)
     parser.add_argument('--max-hit-bins', type=int, default=3,
                         help='Preserve points repeatedly supported in more independent time bins')
+    parser.add_argument('--point-time-groups-ms', type=float, default=0.,
+                        help='Use captured per-point times and interpolated origins in short groups; 0 keeps frame-end origin')
     parser.add_argument('--require-angular-support', action='store_true',
                         help='Reject free votes extrapolated outside the three measured ray directions')
     parser.add_argument('--reuse-evidence', type=pathlib.Path,
@@ -156,6 +176,8 @@ def main():
         parser.error('Supported free margin .1--.5m, max range 5--40m')
     if args.min_free_bins < 2 or not .5 <= args.free_ratio <= 1 or args.min_span < 2 or args.max_hit_bins < 0:
         parser.error('At least two bins, ratio .5--1 and span >=2s required')
+    if args.point_time_groups_ms and not .5 <= args.point_time_groups_ms <= 20:
+        parser.error('Point-time origin groups must be .5--20ms')
     frontend, backend = args.frontend.resolve(), args.backend.resolve()
     output = args.output_dir.resolve()
     if output.exists():
@@ -189,8 +211,9 @@ def main():
             raise ValueError('Evidence trajectory mismatch')
         if previous['input_frames'] != report['input_frames']:
             raise ValueError('Evidence frame count mismatch')
-        for key in ['frame_step','evidence_bin','angle_deg','hit_distance','free_margin','max_range']:
-            if previous['settings'][key] != getattr(args,key):
+        for key in ['frame_step','evidence_bin','angle_deg','hit_distance','free_margin','max_range',
+                    'point_time_groups_ms']:
+            if previous['settings'].get(key, 0.) != getattr(args,key):
                 raise ValueError('Evidence acquisition setting mismatch: '+key)
         if previous['settings'].get('require_angular_support', False) != args.require_angular_support:
             raise ValueError('Evidence acquisition setting mismatch: require_angular_support')
@@ -219,6 +242,13 @@ def main():
         (output/'report.json').write_text(json.dumps(previous,indent=2)+'\n')
         print(json.dumps(previous,indent=2))
         return
+    if args.point_time_groups_ms:
+        for filename in cap['temporal_raw']:
+            with np.load(frontend / 'capture' / filename) as archive:
+                if 'point_time_ms' not in archive.files:
+                    raise ValueError('Point-time grouping requested but capture has no point_time_ms')
+                if len(archive['point_time_ms']) != int(np.sum(archive['lengths'])):
+                    raise ValueError('Point-time array length mismatch')
     n = len(points)
     output.mkdir(parents=True)
     hit_bins, free_bins = np.zeros(n, np.uint16), np.zeros(n, np.uint16)
@@ -242,17 +272,34 @@ def main():
                     continue
                 last_selected = stamp
                 frame = cloud[cuts[j]:cuts[j + 1]]
+                point_times = None
+                groups = []
+                if args.point_time_groups_ms:
+                    if 'point_time_ms' not in chunk.files:
+                        raise ValueError('Point-time grouping requested but capture has no point_time_ms')
+                    point_times = chunk['point_time_ms'][cuts[j]:cuts[j + 1]]
+                    if len(point_times) != len(frame):
+                        raise ValueError('Point-time array length mismatch')
                 corrected, origin = correct_scan(frame, original[old, 1:4], original_rotation[old],
                     optimized[new, 1:4], optimized_rotation[new], extrinsic_t)
+                if point_times is not None:
+                    from deskew_ray_origin import grouped_origins
+                    groups = grouped_origins(stamp, point_times, optimized, optimized_rotation, extrinsic_t,
+                                             args.point_time_groups_ms)
                 distances = np.linalg.norm(map_xyz - origin, axis=1)
                 candidates = np.flatnonzero((distances > .35) & (distances <= args.max_range))
                 group = int((stamp - reference) / args.evidence_bin)
                 hit_count = free_count = 0
                 for offset in range(0, len(candidates), 150000):
                     subset = candidates[offset:offset + 150000]
-                    hits, frees = ray_evidence(map_xyz[subset], corrected, origin, args.angle_deg,
-                                               args.hit_distance, args.free_margin,
-                                               require_angular_support=args.require_angular_support)
+                    if point_times is None:
+                        hits, frees = ray_evidence(map_xyz[subset], corrected, origin, args.angle_deg,
+                                                   args.hit_distance, args.free_margin,
+                                                   require_angular_support=args.require_angular_support)
+                    else:
+                        hits, frees = grouped_ray_evidence(map_xyz[subset], corrected, groups, args.angle_deg,
+                                                           args.hit_distance, args.free_margin,
+                                                           require_angular_support=args.require_angular_support)
                     hi, fi = subset[hits], subset[frees]
                     fresh_hit = hi[last_hit_bin[hi] != group]
                     fresh_free = fi[last_free_bin[fi] != group]
@@ -268,7 +315,8 @@ def main():
                     free_count += len(fi)
                 selected += 1
                 rows.append(dict(stamp=float(stamp), elapsed_s=float(stamp - reference),
-                    candidates=len(candidates), hits=hit_count, free=free_count, bin=group))
+                    candidates=len(candidates), hits=hit_count, free=free_count, bin=group,
+                    point_time_groups=len(groups)))
                 if selected % 20 == 0:
                     print('evidence frames {}, elapsed {:.1f}s'.format(selected, time.monotonic()-start), flush=True)
         print('finished {}, scanned {} frames'.format(filename, total_frames), flush=True)
@@ -300,7 +348,9 @@ def main():
         evidence_acquisition_wall_seconds=acquisition_wall_seconds,
         filter_mode='offline subset of fixed baseline map; no pose changes, spatial crop or extra downsampling',
         detector='custom measured-ray visibility evidence using SciPy cKDTree; not Removert or Dynablox',
-        limitations='Temporal inconsistency is not a semantic motion label. Glass, pose errors and angular interpolation can yield false removals. No ground truth precision/recall measured.')
+        limitations='Temporal inconsistency is not a semantic motion label. Glass, pose errors, grouped point-time '
+                    'origin approximation and angular interpolation can yield false removals. No ground truth '
+                    'precision/recall measured.')
     result['output_bytes'] = sum(p.stat().st_size for p in output.iterdir() if p.is_file())
     (output / 'report.json').write_text(json.dumps(result, indent=2)+'\n')
     print(json.dumps(result, indent=2), flush=True)

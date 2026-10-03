@@ -45,7 +45,8 @@ class DynamicPipelineTest(unittest.TestCase):
         write_pcd(self.backend/'optimized_3cm.pcd',self.points)
         frames=[np.vstack((ghost,wall))]+[wall]*4
         np.savez_compressed(self.frontend/'capture/window.npz',points=np.concatenate(frames),
-            stamps=self.stamps,lengths=np.array([len(frame) for frame in frames]))
+            stamps=self.stamps,lengths=np.array([len(frame) for frame in frames]),
+            point_time_ms=np.zeros(sum(len(frame) for frame in frames), dtype=np.float32))
         (self.frontend/'capture/capture.json').write_text(json.dumps(dict(
             counts={'output_cloud':5},temporal_raw=['window.npz'])))
 
@@ -93,6 +94,27 @@ class DynamicPipelineTest(unittest.TestCase):
         process=self.run_filter(output,'--reuse-evidence',str(evidence))
         self.assertNotEqual(process.returncode,0)
         self.assertIn('Evidence trajectory mismatch',process.stderr)
+        self.assertFalse(output.exists())
+
+    def test_point_time_group_path_uses_captured_offsets(self):
+        output=self.root/'point_time'
+        process=self.run_filter(output, '--point-time-groups-ms', '5')
+        self.assertEqual(process.returncode,0,process.stderr)
+        np.testing.assert_array_equal(read_map(output/'filtered_3cm.pcd'),self.points[1:])
+        rows=(output/'frame_evidence.csv').read_text().splitlines()
+        self.assertTrue(all(int(row.split(',')[-1]) == 1 for row in rows[1:]))
+
+    def test_point_time_request_rejects_old_capture_without_offsets(self):
+        with np.load(self.frontend/'capture/window.npz') as archive:
+            arrays={key:archive[key] for key in archive.files if key != 'point_time_ms'}
+        np.savez_compressed(self.frontend/'capture/window_without_time.npz',**arrays)
+        capture=json.loads((self.frontend/'capture/capture.json').read_text())
+        capture['temporal_raw']=['window_without_time.npz']
+        (self.frontend/'capture/capture.json').write_text(json.dumps(capture))
+        output=self.root/'point_time_rejected'
+        process=self.run_filter(output, '--point-time-groups-ms', '5')
+        self.assertNotEqual(process.returncode,0)
+        self.assertIn('no point_time_ms',process.stderr)
         self.assertFalse(output.exists())
 
     def test_mismatched_baseline_frame_count_is_rejected(self):

@@ -369,7 +369,22 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_foot
 
 原始第一包进一步审计确认 `/livox/lidar` 的 `timestamp` 字段是 `FLOAT64` 绝对纳秒时间戳：2,261 帧、45,206,016 个点，时间戳全部有效；相对消息头的点时间范围为 0–105.208 ms，扫描持续时间中位数为 100.180 ms，消息头间隔约 100 ms。`scripts/audit_livox_point_timing.py` 只读取 bag，不复制或修改数据。该结果使逐点原点修正具备输入依据，但尚未证明估计器发布的世界点仍保留同一时间基准。
 
-ROS1 捕获器现在会从输出 `PointCloud2` 保存 PCL 的 `curvature`（或兼容的 `time` / `timestamp`）字段到每个 `temporal_raw/*.npz` 的 `point_time_ms`，并在 `capture.json` 中记录 `point_time_preserved`。旧缓存没有这个字段，不能伪造补齐；动态过滤继续按原有帧末原点运行，直到完成新的逐点时间捕获与轨迹插值验证。
+ROS1 捕获器现在会从输出 `PointCloud2` 保存 PCL 的 `curvature`（或兼容的 `time`）偏移字段到每个 `temporal_raw/*.npz` 的 `point_time_ms`，并在 `capture.json` 中记录 `point_time_preserved`。原始 Livox 的绝对 `timestamp` 不会被误当作毫秒偏移；它由独立 bag 审计工具处理。旧缓存没有这个字段，不能伪造补齐；动态过滤继续按原有帧末原点运行，直到完成新的逐点时间捕获与轨迹插值验证。
+
+## 逐点雷达原点实验入口
+
+过滤器支持显式的 `--point-time-groups-ms 0.5..20`。它要求每个捕获归档都有与 `lengths` 完全一致的 `point_time_ms`，把点偏移换算为绝对时间，在优化轨迹上做平移线性插值和旋转 SLERP，并将 Livox 外参杆臂转换到世界坐标。每个短时间组用组内中位雷达原点执行现有 `ray_evidence`；组间命中优先于自由空间，少于三条回波的组保持未知。该实现是可审计的近似，不能把 5 ms 分组当成逐点真值。
+
+ROS1 Faster-LIO 入口：
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_robust_mapping.py \
+  --bag /path/to/recording.bag --calibration pitch25 --rate .75 \
+  --dynamic-filter --dynamic-point-time-groups-ms 5 \
+  --output-dir "$PWD/results/point_time_dynamic_run"
+```
+
+批处理入口对应 `scripts/run_dynamic_filtering.py --point-time-groups-ms 5`。默认值为 0，关闭该实验；没有完整 `point_time_ms` 的旧缓存会在建立输出目录前拒绝。当前四包旧缓存均没有该数组，因此本轮没有生成新的逐点原点 PCD，也没有改变 `angular_guard` 候选。合成 CLI、时间插值、组内原点和缺失字段测试已通过；真实四包逐点入口仍需新的 ROS1 捕获。
 
 ```bash
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_footprint.py \
@@ -379,4 +394,4 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_foot
   --output-root "$PWD/results/ray_footprint_trial" --origin-motion-only
 ```
 
-`origin_motion_report.json` 保存上述独立诊断，不改变地图。加入旋转杆臂和长位姿间隔测试后，间距审计模块的 14 项测试再次通过；随后在加载 ROS1/Livox 工作空间的环境中，完整 `bash scripts/test_release.sh` 通过 84 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。
+`origin_motion_report.json` 保存上述独立诊断，不改变地图。加入旋转杆臂和长位姿间隔测试后，间距审计模块的 14 项测试再次通过；随后在加载 ROS1/Livox 工作空间的环境中，完整 `bash scripts/test_release.sh` 通过 94 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。

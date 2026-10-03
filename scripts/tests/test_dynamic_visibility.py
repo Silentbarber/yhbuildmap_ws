@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from filter_dynamic_map import correct_scan, ray_evidence, removal_mask
+from filter_dynamic_map import correct_scan, grouped_ray_evidence, ray_evidence, removal_mask
 
 
 def returns(distance, angle=.001):
@@ -73,6 +73,22 @@ class VisibilityTest(unittest.TestCase):
         base_hit,_=ray_evidence(point,returns(4),np.zeros(3))
         guarded_hit,_=ray_evidence(point,returns(4),np.zeros(3),require_angular_support=True)
         np.testing.assert_array_equal(base_hit,guarded_hit)
+
+    def test_grouped_origins_keep_hit_precedence_over_free_vote(self):
+        point=np.array([[2.,0,0]])
+        groups=[(np.arange(3), np.zeros(3), 0.),
+                (np.arange(3,6), np.zeros(3), .01)]
+        measured=np.vstack([returns(4), returns(2)])
+        hit,free=grouped_ray_evidence(point,measured,groups)
+        self.assertTrue(hit[0])
+        self.assertFalse(free[0])
+
+    def test_group_with_too_few_returns_is_unknown(self):
+        point=np.array([[2.,0,0]])
+        measured=returns(4)
+        hit,free=grouped_ray_evidence(point,measured,[(np.arange(2),np.zeros(3),0.)])
+        self.assertFalse(hit[0])
+        self.assertFalse(free[0])
 
     def test_votes_need_independent_bins_span_and_low_support(self):
         hits=np.array([0,0,8,0,1],dtype=np.uint16)

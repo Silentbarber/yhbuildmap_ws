@@ -24,7 +24,11 @@ def main():
                         help='Use measured-ray triangle support; already enabled by default')
     angular.add_argument('--allow-angular-extrapolation',action='store_true',
                         help='Experimental legacy comparison: disable triangle support')
+    parser.add_argument('--point-time-groups-ms',type=float,default=0.,
+                        help='Experimental: use captured per-point times and interpolated ray origins')
     args=parser.parse_args()
+    if args.point_time_groups_ms and not .5 <= args.point_time_groups_ms <= 20:
+        parser.error('point-time groups must be .5--20ms')
     args.require_angular_support=not args.allow_angular_extrapolation
     records=json.loads((ROOT/'config/dynamic_filtering_recordings.json').read_text())['recordings']
     selected=[r for r in records if not args.id or r['id'] in args.id]
@@ -41,7 +45,8 @@ def main():
         backend=args.data_root/record['backend']
         output=args.output_root/record['id']
         command=[sys.executable,str(ROOT/'scripts/filter_dynamic_map.py'),str(frontend),str(backend),
-            '--output-dir',str(output),'--frame-step','.3','--angle-deg','.7','--max-hit-bins','3']
+            '--output-dir',str(output),'--frame-step','.3','--angle-deg','.7','--max-hit-bins','3',
+            '--point-time-groups-ms',str(args.point_time_groups_ms)]
         if args.require_angular_support:
             command+=['--require-angular-support']
         if args.reuse_root:

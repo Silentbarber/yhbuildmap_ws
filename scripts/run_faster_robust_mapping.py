@@ -33,13 +33,17 @@ def main():
                          help='Experimental legacy comparison: permit direction extrapolation')
     parser.add_argument('--dynamic-max-hit-bins', type=int, choices=[0, 1, 2, 3],
                         help='Dynamic candidate support threshold, default 3; 1 for conservative comparison')
+    parser.add_argument('--dynamic-point-time-groups-ms', type=float, default=0.,
+                        help='Experimental: use captured per-point times and interpolated ray origins in short groups')
     args = parser.parse_args()
     if (args.dynamic_angular_support is not None or args.dynamic_allow_angular_extrapolation
-            or args.dynamic_max_hit_bins is not None) and not args.dynamic_filter:
+            or args.dynamic_max_hit_bins is not None or args.dynamic_point_time_groups_ms) and not args.dynamic_filter:
         parser.error('Dynamic settings require --dynamic-filter')
     args.dynamic_angular_support = args.dynamic_filter and not args.dynamic_allow_angular_extrapolation
     if args.dynamic_max_hit_bins is None:
         args.dynamic_max_hit_bins = 3
+    if args.dynamic_point_time_groups_ms and not .5 <= args.dynamic_point_time_groups_ms <= 20:
+        parser.error('dynamic point-time groups must be .5--20ms')
     if not 0 < args.rate <= 2:
         parser.error('rate must be in (0, 2]')
     bag = args.bag.resolve()
@@ -93,7 +97,8 @@ def main():
             raise RuntimeError('Dynamic filtering requires the completed backend trajectory; baseline map remains available')
         dynamic = output / 'dynamic'
         filter_arguments = ['--frame-step', .3, '--angle-deg', .7,
-                            '--max-hit-bins', args.dynamic_max_hit_bins, '--output-dir', dynamic]
+                            '--max-hit-bins', args.dynamic_max_hit_bins, '--output-dir', dynamic,
+                            '--point-time-groups-ms', args.dynamic_point_time_groups_ms]
         if args.dynamic_angular_support:
             filter_arguments += ['--require-angular-support']
         run('filter_dynamic_map.py', frontend, backend, *filter_arguments)

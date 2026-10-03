@@ -63,6 +63,10 @@ class BatchDefaultsTest(unittest.TestCase):
         self.assertNotIn('--require-angular-support', command)
         self.assertEqual(command[command.index('--reuse-evidence')+1], str(self.root/'cache/215247/visibility_v2'))
 
+    def test_point_time_groups_reach_filter(self):
+        command = self.invoke('--point-time-groups-ms', '5')
+        self.assertEqual(command[command.index('--point-time-groups-ms')+1], '5.0')
+
 
 if __name__ == '__main__':
     unittest.main()
