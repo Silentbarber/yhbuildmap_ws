@@ -17,3 +17,5 @@ export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1
 /usr/bin/python3 scripts/audit_dynamic_filter.py --help >/dev/null
 /usr/bin/python3 scripts/audit_angular_visibility.py --help >/dev/null
 /usr/bin/python3 scripts/audit_dynamic_regions.py --help >/dev/null
+/usr/bin/python3 scripts/sweep_dynamic_filter_params.py --help >/dev/null
+/usr/bin/python3 scripts/verify_temporal_region_sources.py --help >/dev/null

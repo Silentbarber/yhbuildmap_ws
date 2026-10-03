@@ -164,3 +164,70 @@ done
 ```
 
 审计不会修改四张交付 PCD，也不会为了改善截图删除局部区域。它的目的是把用户肉眼检查定位到具体时间段和源帧。
+
+## 阈值敏感性
+
+`scripts/sweep_dynamic_filter_params.py` 使用已经采集的角度保护证据，只重新计算删除掩码，不重新播放 bag、不写 PCD。它同时统计被至少四个时间段命中的点是否被删除，以及第三包已有固定表面区域的删除数量。
+
+本轮比较了 `min_free_bins={4,6,8}`、`free_ratio={0.8,0.9}`、`min_span={6,10}s` 和 `max_hit_bins={1,3}` 的 24 组组合。相对于当前 `max_hit_bins=3, min_free_bins=4, free_ratio=0.8, min_span=6s`：
+
+| 包 | 当前移除 | `max_hit_bins=1` 移除 | 恢复点 | `patch_14` 删除 |
+| --- | ---: | ---: | ---: | ---: |
+| 10-01 21:52:47 | 14,412 | 11,574 | 2,838 | 不适用 |
+| 10-02 16:21:02 | 6,393 | 6,108 | 285 | 不适用 |
+| 10-02 16:23:42 | 7,467 | 7,130 | 337 | 65（当前为 75） |
+| 10-02 16:27:44 | 6,667 | 6,549 | 118 | 不适用 |
+
+这里的“恢复点”是重新分类后不再删除的 baseline 点，不代表它们都是静态点。`max_hit_bins=1` 只是更保守的参数对照，仍可能保留动态物体；当前两组 PCD 和证据均保留，待用户在同坐标三维页面中比较。
+
+复现敏感性分析：
+
+```bash
+/usr/bin/python3 scripts/sweep_dynamic_filter_params.py \
+  --data-root /path/to/existing/buildmap_test_ws \
+  --evidence-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/angular_guard \
+  --min-free 4 6 8 --ratio .8 .9 --span 6 10 --max-hit 1 3 \
+  --output results/dynamic_filtering/threshold_sweep.json
+```
+
+进一步补齐的 `threshold_sweep_v2.json` 核对了地图和轨迹哈希、证据帧数、角度保护设置及数组尺寸，并复用了结构审计的同一套局部 PCA 抽样。收紧 `max_hit_bins` 从 3 到 1 后，四包几何平面候选删除量分别为 47→47、3→3、12→11、22→22。这个差异没有提供明确的整体静态质量优势，当前没有因此替换默认候选。24 组参数与删除统计不是动态检出率对照。
+
+## 三维时间轴
+
+仓库 `viewer/temporal.html` 是局部时间审计的独立三维工具，使用本地 Three.js、OrbitControls 和 Lucide 文件，不依赖外部 CDN 加载。场景显示来自 `audit_dynamic_regions.py` 的实际前端输出扫描，应用相同优化轨迹修正，不额外配准。绿色/红色/黄色对应角度保护 `max_hit_bins=3` 候选的保留/移除/相对第一版恢复状态，不是语义运动真值。
+
+它支持时间轴、播放、前后样本帧、固定相机的 Scan/Baseline/Filtered/Removed 切换、背景上下文以及顶/正/侧视。页面使用约 0.5 s 的显示采样，精确时刻以当前源帧时间为准；`frames.csv` 仍覆盖所有捕获输出帧。局部区域是检查视图，不改变交付地图的范围。
+
+先生成全部四包时间审计数据，再从仓库根目录启动静态服务器：
+
+```bash
+/usr/bin/python3 -m http.server 8766 --bind 127.0.0.1 --directory .
+```
+
+如果审计生成在本仓库的 `results/dynamic_filtering/temporal_review/`，打开 `http://127.0.0.1:8766/viewer/temporal.html?bag=162342&region=uncertain_patch_14&t=225.4`。审计数据在其他被同一服务器提供的目录时，可用 `data` 参数指定其 URL 根目录，以 `/` 结尾。网页不读取 bag 或 NPZ，它只读取已生成的审计产物。
+
+独立源帧核对工具 `scripts/verify_temporal_region_sources.py` 检查所有缓存档案与元数据哈希，并对每个区域抽取最多四个非空显示帧，从原始缓存索引重建坐标和强度，重新核对最近邻 baseline 索引、距离、分类及雷达原点。抽样核对不等于所有点的精确体素 lineage 或语义标注。
+
+```bash
+/usr/bin/python3 scripts/verify_temporal_region_sources.py \
+  --data-root /path/to/existing/buildmap_test_ws \
+  --review-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/temporal_review \
+  --output results/dynamic_filtering/source_validation.json
+```
+
+本机源帧检查已验证 21 个区域共 84 个非空显示样本，重建坐标和强度逐值一致，关联索引、距离、分类及雷达原点均通过，同时核对全部缓存档案哈希。时间查看器完成 21 个桌面区域及 5 个手机区域的 26 项检查，包含真实画布像素、旋转、前后样本和播放推进，以及局部 baseline/filtered/removed 点数核对。渲染检查本身不是语义质量证明。
+
+独立发布仓库中的查看器还完成了第三包待确认区域的桌面、手机加载检查，使用本机已生成的同一份审计数据。`bash scripts/test_release.sh` 通过 37 项 Python 测试及 100 轮原生 MID360 输入回归；这些测试不包含新增整包回放或人工动态标签验收。
+
+## 新录包入口
+
+从新 bag 回放到后端及角度保护过滤的 ROS1 入口：
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_robust_mapping.py \
+  --bag /path/to/new_recording.bag --calibration pitch25 --rate .75 \
+  --dynamic-filter --dynamic-angular-support \
+  --output-dir "$PWD/results/new_dynamic_run"
+```
+
+`--calibration` 仍需匹配实际录制配置。`--dynamic-max-hit-bins 1` 可追加为保守对照；默认是 3。未启用 `--dynamic-filter` 时保持 baseline 行为。动态专用参数在没有过滤开关时被拒绝，且入口禁止要求删除被四个及以上时间段支持的点。CLI 集成测试验证参数传递和输出路径；本轮四包过滤仍复用已有完整前端缓存与固定优化轨迹，没有再次执行整包 ROS 回放。

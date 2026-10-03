@@ -14,6 +14,25 @@ from scipy.spatial import cKDTree
 from filter_dynamic_map import read_map
 
 
+def planar_sample_ids(source):
+    """Geometric PCA candidates; these are not verified static labels."""
+    if len(source) < 16:
+        return np.empty(0, dtype=np.int64)
+    tree=cKDTree(source[:,:3])
+    sample=np.arange(0,len(source),4)
+    selected=[]
+    for offset in range(0,len(sample),25000):
+        ids=sample[offset:offset+25000]
+        distances,neighbours=tree.query(source[ids,:3],k=16,workers=2)
+        xyz=source[neighbours,:3].astype(float)
+        centered=xyz-xyz.mean(axis=1,keepdims=True)
+        cov=np.einsum('nki,nkj->nij',centered,centered)/16
+        eig=np.linalg.eigvalsh(cov)
+        planar=(distances[:,-1]<.20)&(eig[:,0]/np.maximum(eig.sum(axis=1),1e-12)<.02)&(eig[:,1]>.0001)
+        selected.append(ids[planar])
+    return np.concatenate(selected)
+
+
 def panels(baseline, removed, path, limits=None, title='Fixed-coordinate comparison'):
     fig, axes=plt.subplots(3,3,figsize=(15,12))
     keep=~removed
@@ -53,19 +72,7 @@ def main():
     assert np.array_equal(removed_points,source[removed]),'Removed point partition mismatch'
     output=args.filtered/'audit'
     output.mkdir(exist_ok=True)
-    # Local PCA yields geometric planar candidates, not verified static labels.
-    tree=cKDTree(source[:,:3])
-    planar_counts=[]
-    sample=np.arange(0,len(source),4)
-    for offset in range(0,len(sample),25000):
-        ids=sample[offset:offset+25000]
-        distances,neighbours=tree.query(source[ids,:3],k=16,workers=2)
-        xyz=source[neighbours,:3].astype(float)
-        centered=xyz-xyz.mean(axis=1,keepdims=True)
-        cov=np.einsum('nki,nkj->nij',centered,centered)/16
-        eig=np.linalg.eigvalsh(cov)
-        planar=(distances[:,-1]<.20)&(eig[:,0]/np.maximum(eig.sum(axis=1),1e-12)<.02)&(eig[:,1]>.0001)
-        planar_counts.append((int(planar.sum()),int((planar&removed[ids]).sum())))
+    planar_ids=planar_sample_ids(source)
     patches=[]
     if args.patches:
         for patch in json.loads(args.patches.read_text()):
@@ -100,7 +107,7 @@ def main():
     panels(source,removed,output/'whole_map.png')
     records=dict(exact_subset_partition_passed=True,baseline_points=len(source),filtered_points=len(kept),
         removed_points=len(removed_points),static_patch_checks=patches,
-        planar_sample_points=sum(x[0] for x in planar_counts),planar_sample_removed=sum(x[1] for x in planar_counts),
+        planar_sample_points=len(planar_ids),planar_sample_removed=int(removed[planar_ids].sum()),
         removal_clusters=clusters,removed_hit_quantiles=np.percentile(hits[removed],[0,50,90,100]).tolist() if removed.any() else [],
         removed_free_quantiles=np.percentile(frees[removed],[0,50,90,100]).tolist() if removed.any() else [],
         metric_scope='Fixed baseline-coordinate geometric candidates and existing fixed surface patches. Not semantic dynamic precision/recall; planar moving objects may exist.')

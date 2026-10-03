@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MID360 Temporal Review</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./temporal.css">
+</head>
+<body>
+  <canvas id="scene"></canvas>
+  <header class="topbar">
+    <div><p class="eyebrow">MID360 / TEMPORAL REVIEW</p><h1 id="recording-title">MID360</h1></div>
+    <div class="topbar-actions"><span id="status" class="status">Loading</span>
+      <button id="screenshot" class="icon-button" title="Screenshot" aria-label="Screenshot"><i data-lucide="camera"></i></button>
+    </div>
+  </header>
+  <aside class="panel">
+    <label class="field"><span>Recording</span><select id="recording">
+      <option value="215247">10-01 21:52:47</option><option value="162102">10-02 16:21:02</option>
+      <option value="162342">10-02 16:23:42</option><option value="162744">10-02 16:27:44</option>
+    </select></label>
+    <label class="field"><span>Region</span><select id="region"></select></label>
+    <div class="field-group"><span class="field-label">Source</span><div class="segmented" role="group" aria-label="Source">
+      <button data-source="scan" class="selected">Scan</button><button data-source="baseline">Baseline</button>
+      <button data-source="filtered">Filtered</button><button data-source="removed">Removed</button>
+    </div></div>
+    <div class="field-group"><span class="field-label">Time</span>
+      <div class="time-controls">
+        <button id="previous" class="icon-button" title="Previous frame" aria-label="Previous frame"><i data-lucide="skip-back"></i></button>
+        <button id="play" class="icon-button" title="Play" aria-label="Play"><i data-lucide="play"></i></button>
+        <button id="next" class="icon-button" title="Next frame" aria-label="Next frame"><i data-lucide="skip-forward"></i></button>
+        <input id="time-number" type="number" min="0" step="0.1" aria-label="Recording time in seconds">
+        <select id="speed" aria-label="Playback speed"><option value="1">1x</option><option value="2">2x</option><option value=".5">0.5x</option></select>
+      </div>
+      <input id="time" type="range" min="0" max="1" step=".1" value="0" aria-label="Recording time">
+      <div class="time-caption"><output id="elapsed">0.0 s</output><span id="frame-number">Frame 0</span></div>
+    </div>
+    <div class="field-group toggles"><label><input id="context" type="checkbox" checked> Baseline context</label></div>
+    <label class="field range-field"><span><span>Point size</span><output id="point-size-value">0.025</output></span>
+      <input id="point-size" type="range" min=".005" max=".08" step=".005" value=".025"></label>
+    <div class="field-group"><span class="field-label">View</span><div class="view-grid">
+      <button id="fit" title="Fit region">Fit</button><button id="top">Top</button><button id="front">Front</button><button id="side">Side</button>
+    </div></div>
+    <div class="stats" aria-live="polite">
+      <div><span>Visible points</span><strong id="points">0</strong></div>
+      <div><span>Retained</span><strong id="retained">0</strong></div>
+      <div><span>Removed</span><strong id="removed">0</strong></div>
+      <div><span>Restored</span><strong id="restored">0</strong></div>
+      <div><span>Unassociated</span><strong id="unassociated">0</strong></div>
+    </div>
+    <div id="empty" hidden>No scan returns at this time</div>
+  </aside>
+  <div class="class-legend"><span><i class="retained"></i>Retained</span><span><i class="removed"></i>Removed</span><span><i class="restored"></i>Restored</span></div>
+  <div id="error" class="error" hidden></div>
+  <script src="./vendor/lucide.min.js"></script>
+  <script type="module" src="./temporal.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+:root { --bg: #101514; --panel: rgba(18, 26, 24, .96); }
+body { background: var(--bg); }
+.topbar h1 { font-size: 22px; overflow-wrap: anywhere; }
+.panel { width: min(300px, calc(100vw - 44px)); }
+.icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 34px; }
+.icon-button svg { width: 17px; height: 17px; }
+.time-controls { display: flex; align-items: center; gap: 5px; }
+.time-controls select { width: 60px; flex: 0 0 60px; padding: 0 4px; }
+.time-controls input { width: 65px; min-width: 0; flex: 1; height: 34px; border: 1px solid var(--panel-border); border-radius: 4px; background: #101918; color: var(--text); padding: 0 5px; }
+.time-caption { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.view-grid { grid-template-columns: repeat(4, 1fr); }
+.class-legend { position: fixed; bottom: 20px; right: 22px; display: flex; gap: 12px; color: var(--muted); font-size: 11px; pointer-events: none; }
+.class-legend span { display: flex; align-items: center; gap: 5px; }
+.class-legend i { width: 8px; height: 8px; border-radius: 50%; }
+.class-legend .retained { background: #49bbae; }
+.class-legend .removed { background: #e86169; }
+.class-legend .restored { background: #e7b455; }
+#empty { margin-top: 12px; min-height: 18px; color: #e7b455; font-size: 12px; }
+@media (max-width: 700px) {
+  .panel { max-height: 45vh; width: calc(100vw - 24px); }
+  .class-legend { bottom: calc(45vh + 24px); left: 16px; right: auto; gap: 10px; }
+  .topbar h1 { font-size: 20px; }
+}

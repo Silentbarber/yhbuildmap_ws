@@ -26,7 +26,15 @@ def main():
                         help='Experimental: worsened temporal consistency in the two weak-return bags')
     parser.add_argument('--dynamic-filter', action='store_true',
                         help='Experimental offline visibility cleaning after optimized map reconstruction')
+    parser.add_argument('--dynamic-angular-support', action='store_true',
+                        help='Require measured-ray triangle coverage; only with --dynamic-filter')
+    parser.add_argument('--dynamic-max-hit-bins', type=int, choices=[0, 1, 2, 3],
+                        help='Dynamic candidate support threshold, default 3; 1 for conservative comparison')
     args = parser.parse_args()
+    if (args.dynamic_angular_support or args.dynamic_max_hit_bins is not None) and not args.dynamic_filter:
+        parser.error('Dynamic settings require --dynamic-filter')
+    if args.dynamic_max_hit_bins is None:
+        args.dynamic_max_hit_bins = 3
     if not 0 < args.rate <= 2:
         parser.error('rate must be in (0, 2]')
     bag = args.bag.resolve()
@@ -79,8 +87,11 @@ def main():
         if process.returncode != 0:
             raise RuntimeError('Dynamic filtering requires the completed backend trajectory; baseline map remains available')
         dynamic = output / 'dynamic'
-        run('filter_dynamic_map.py', frontend, backend, '--frame-step', .3, '--angle-deg', .7,
-            '--max-hit-bins', 3, '--output-dir', dynamic)
+        filter_arguments = ['--frame-step', .3, '--angle-deg', .7,
+                            '--max-hit-bins', args.dynamic_max_hit_bins, '--output-dir', dynamic]
+        if args.dynamic_angular_support:
+            filter_arguments += ['--require-angular-support']
+        run('filter_dynamic_map.py', frontend, backend, *filter_arguments)
         dynamic_report = json.loads((dynamic / 'report.json').read_text())
         run('audit_dynamic_filter.py', unfiltered_map, dynamic)
         dynamic_report['structural_audit'] = json.loads((dynamic / 'audit/report.json').read_text())
