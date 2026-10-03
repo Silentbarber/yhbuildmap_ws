@@ -23,6 +23,8 @@ def main():
     parser.add_argument('--data-root', type=pathlib.Path, required=True)
     parser.add_argument('--review-root', type=pathlib.Path, required=True)
     parser.add_argument('--output', type=pathlib.Path, required=True)
+    parser.add_argument('--window-review', action='store_true', help='Validate selected full-rate windows without a full-bag frames.csv')
+    parser.add_argument('--all-display-frames', action='store_true', help='Reconstruct every nonempty exported frame instead of four samples')
     args = parser.parse_args()
     if args.output.exists():
         parser.error('Use a fresh output path')
@@ -31,6 +33,8 @@ def main():
     for record in records:
         directory = args.review_root/record['id']
         report = json.loads((directory/'report.json').read_text())
+        if args.window_review and report.get('sampling') != 'all captured frames in selected peak windows':
+            raise ValueError('Expected an explicitly scoped full-window review')
         frontend, backend = args.data_root/record['frontend'], args.data_root/record['backend']
         for name, digest in report['source_metadata_sha256'].items():
             if hashlib.sha256((frontend/name).read_bytes()).hexdigest() != digest:
@@ -60,8 +64,8 @@ def main():
             if not np.array_equal(np.fromfile(folder/'baseline_classes.bin', dtype=np.uint8), expected_classes):
                 raise ValueError('Region baseline class mismatch')
             frames = json.loads((folder/'frames.json').read_text())
-            rows = list(csv.DictReader((folder/'frames.csv').open()))
-            if len(rows) != record['frames'] or len(frames) != region['display_frames']:
+            rows = None if args.window_review else list(csv.DictReader((folder/'frames.csv').open()))
+            if (rows is not None and len(rows) != record['frames']) or len(frames) != region['display_frames']:
                 raise ValueError('Frame coverage mismatch')
             source = dict(points=np.fromfile(folder/'scan.bin', dtype='<f4').reshape(-1, 4),
                 classes=np.fromfile(folder/'scan_classes.bin', dtype=np.uint8),
@@ -72,22 +76,29 @@ def main():
             if any(len(array) != expected for array in source.values()):
                 raise ValueError('Packed source array length mismatch')
             visible = [frame for frame in frames if frame['count']]
-            for index in np.unique(np.linspace(0, len(visible)-1, min(4, len(visible)), dtype=int)):
+            selected = range(len(visible)) if args.all_display_frames else np.unique(
+                np.linspace(0, len(visible)-1, min(4, len(visible)), dtype=int))
+            for index in selected:
                 frame = visible[index]
-                row = rows[frame['frame_index']]
-                if row['chunk'] != frame['chunk'] or int(row['chunk_frame']) != frame['chunk_frame']:
-                    raise ValueError('Full-frame/display index mismatch')
+                if rows is not None:
+                    row = rows[frame['frame_index']]
+                    if row['chunk'] != frame['chunk'] or int(row['chunk_frame']) != frame['chunk_frame']:
+                        raise ValueError('Full-frame/display index mismatch')
                 jobs.setdefault(frame['chunk'], []).append((region['key'], frame, source))
+        frame_offset = 0
         for archive in report['source_archives']:
             data = (frontend/'capture'/archive['file']).read_bytes()
             if hashlib.sha256(data).hexdigest() != archive['sha256']:
                 raise ValueError('Captured source archive changed')
-            if archive['file'] not in jobs:
-                continue
             with np.load(io.BytesIO(data)) as chunk:
+                if archive['file'] not in jobs:
+                    frame_offset += len(chunk['stamps'])
+                    continue
                 cuts = np.r_[0, np.cumsum(chunk['lengths'])]
                 for key, frame, packed in jobs[archive['file']]:
                     j = frame['chunk_frame']
+                    if frame['frame_index'] != frame_offset+j:
+                        raise ValueError('Global source frame index mismatch')
                     stamp = float(chunk['stamps'][j])
                     if abs(stamp-frame['stamp']) > 1e-5:
                         raise ValueError('Source timestamp mismatch')
@@ -112,10 +123,15 @@ def main():
                         raise ValueError('Source classification mismatch')
                     checks.append(dict(id=record['id'], region=key, frame=frame['frame_index'],
                                        stamp=stamp, checked_points=len(ids), xyzi_equal=True))
+                frame_offset += len(chunk['stamps'])
+        if frame_offset != record['frames']:
+            raise ValueError('Incomplete captured source inventory')
         print(record['id'], 'source samples verified', flush=True)
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    selection = 'Every nonempty exported frame' if args.all_display_frames else 'Four nonempty display frame samples'
     args.output.write_text(json.dumps(dict(passed=True, checks=checks,
-        scope='Four nonempty display frame samples per selected region, exact reconstructed XYZI '
+        all_display_frames=args.all_display_frames, window_review=args.window_review,
+        scope=selection+' per selected region, exact reconstructed XYZI '
               'and nearest baseline associations; source metadata and all capture archive hashes checked. '
               'Not exhaustive per-point lineage or semantic motion truth.'), indent=2)+'\n')
 

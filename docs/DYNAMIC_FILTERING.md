@@ -231,3 +231,52 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_rob
 ```
 
 `--calibration` 仍需匹配实际录制配置。`--dynamic-max-hit-bins 1` 可追加为保守对照；默认是 3。未启用 `--dynamic-filter` 时保持 baseline 行为。动态专用参数在没有过滤开关时被拒绝，且入口禁止要求删除被四个及以上时间段支持的点。CLI 集成测试验证参数传递和输出路径；本轮四包过滤仍复用已有完整前端缓存与固定优化轨迹，没有再次执行整包 ROS 回放。
+
+## 完整帧运动复核
+
+`scripts/audit_dynamic_motion.py` 比较选定窗口内相邻扫描的固定世界模型和 Open3D 刚体 ICP 模型。拟合只使用训练空间块，检查未参与拟合的点、双向重叠、反向配准闭合、点到平面信息和整体非平面形状。中位数残差也必须改善，以降低可见范围缩小或 MID360 扫描条纹变化带来的误判。平面内运动和形变可能无法确认；该工具只审计，不修改 PCD、轨迹或过滤掩码。
+
+默认读取原时间审计的显示样本。`--full-source` 从原捕获缓存重建选定峰值前后窗口内的全部输出帧，约 10 Hz，不保存整套扫描的副本。校验原缓存、参数、地图和轨迹哈希；雷达原点包含固定外参。它另外使用实际位姿直接计算随设备运动的刚体模型，无需 ICP 拟合。与该模型相容只提示可能存在随设备移动的回波，不能直接确认是手、身体或衣物。
+
+```bash
+for recording_id in 215247 162102 162342 162744; do
+  OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_dynamic_motion.py \
+    --review-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/temporal_review \
+    --data-root /path/to/existing/buildmap_test_ws --full-source \
+    --output-root results/dynamic_filtering/motion_audit_full \
+    --export-review-root results/dynamic_filtering/motion_review --id "$recording_id" || exit 1
+done
+```
+
+输出位置必须是新目录。`--export-review-root` 为现有 `viewer/temporal.html` 导出完整窗口数据；省略该参数只生成数值报告和固定坐标对照图。导出保留实际 chunk/源帧/点索引、最近 baseline 点索引、距离与分类。这里是选定局部窗口的全部帧，约 8 秒，不是四包全程运动检测；完整全程时间计数仍在原 `temporal_review` 的 CSV。
+
+本机最新运动报告在 `results/dynamic_filtering/motion_audit_full_v3/`，对应完整帧三维数据在 `motion_review/`：
+
+| 包 | 区域帧数 | 刚体运动候选帧对 | 随设备运动相容帧对 | 几何控制中的对应帧对 |
+| --- | ---: | ---: | ---: | ---: |
+| 10-01 21:52:47 | 399 | 3 | 0 | 0 / 0 |
+| 10-02 16:21:02 | 398 | 2 | 0 | 0 / 0 |
+| 10-02 16:23:42 | 480 | 1 | 2 | 0 / 0 |
+| 10-02 16:27:44 | 398 | 4 | 14 | 0 / 0 |
+
+区域可能重叠，第二包两处候选包含同一时间帧对；这些不是独立物体数量、动态精确率或召回率。控制区域是几何候选，表中零候选也不是全图静态零误删证明。多数帧对的几何不足或仍无法确认，报告明确保留这些状态，不能将它们强行归类为静态或动态。
+
+第三包 `removal_00` 在约 227.60–227.70 s 有 8.38 cm 的拟合位移，雷达原点位移约 0.85 mm；未参与拟合点的中位数距离从约 4.05 cm 降到 1.76 cm。这加强了该区域存在实际运动的几何证据，但它不等于原 `uncertain_patch_14` 的逐对象类别确认，也不能排除尚未建模的误差。随设备运动相容点对主要出现在第三包约 226.8–227.0 s 和第四包约 59–61 s、71.1–71.2 s，可优先查看。
+
+独立重建检查全部非空导出帧：
+
+```bash
+/usr/bin/python3 scripts/verify_temporal_region_sources.py \
+  --data-root /path/to/existing/buildmap_test_ws \
+  --review-root results/dynamic_filtering/motion_review \
+  --window-review --all-display-frames \
+  --output results/dynamic_filtering/motion_review/source_validation.json
+```
+
+本机 21 个窗口共 1,675 个区域帧，其中 1,563 个非空帧的 3,277,635 个 XYZI 点、源索引、关联索引、距离和分类核对通过；去重后覆盖 1,286 个捕获帧。完整帧查看器另完成 26 项桌面/手机像素、旋转、切换和播放检查。局部数据约占 99 MiB；最新每包运动审计约 11–16 s、峰值内存约 497–532 MiB，均不含首次过滤耗时。
+
+查看完整窗口时，使用 `http://127.0.0.1:8765/viewer/temporal.html?data=/results/dynamic_filtering/motion_review/&bag=162342&region=uncertain_patch_14&t=225.4`，端口和 `data` URL 按实际静态服务器目录调整。页面每次仍只显示一个包、一个区域。
+
+本轮保持四包 baseline 与两套过滤候选 PCD 哈希一致；运动检查尚未反馈到删除策略。后续需结合实际场景确认残留和静态误删，再决定是否使用随设备运动证据补充过滤。
+
+`bash scripts/test_release.sh` 已通过 50 项 Python 测试及 100 轮原生 MID360 输入回归。新增测试包含静止物体可见范围变化、带噪平面扫描、实际刚体位移、设备运动模型、源坐标/分类/原点、窗口选择、缓存篡改及导出索引核对。没有新增整包 ROS 回放。
