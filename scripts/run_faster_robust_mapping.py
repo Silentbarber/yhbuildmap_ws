@@ -26,13 +26,18 @@ def main():
                         help='Experimental: worsened temporal consistency in the two weak-return bags')
     parser.add_argument('--dynamic-filter', action='store_true',
                         help='Experimental offline visibility cleaning after optimized map reconstruction')
-    parser.add_argument('--dynamic-angular-support', action='store_true',
-                        help='Require measured-ray triangle coverage; only with --dynamic-filter')
+    angular = parser.add_mutually_exclusive_group()
+    angular.add_argument('--dynamic-angular-support', action='store_true', default=None,
+                         help='Measured-ray triangle coverage; default with --dynamic-filter')
+    angular.add_argument('--dynamic-allow-angular-extrapolation', action='store_true',
+                         help='Experimental legacy comparison: permit direction extrapolation')
     parser.add_argument('--dynamic-max-hit-bins', type=int, choices=[0, 1, 2, 3],
                         help='Dynamic candidate support threshold, default 3; 1 for conservative comparison')
     args = parser.parse_args()
-    if (args.dynamic_angular_support or args.dynamic_max_hit_bins is not None) and not args.dynamic_filter:
+    if (args.dynamic_angular_support is not None or args.dynamic_allow_angular_extrapolation
+            or args.dynamic_max_hit_bins is not None) and not args.dynamic_filter:
         parser.error('Dynamic settings require --dynamic-filter')
+    args.dynamic_angular_support = args.dynamic_filter and not args.dynamic_allow_angular_extrapolation
     if args.dynamic_max_hit_bins is None:
         args.dynamic_max_hit_bins = 3
     if not 0 < args.rate <= 2:

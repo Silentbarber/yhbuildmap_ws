@@ -67,8 +67,19 @@ class PipelineFlagsTest(unittest.TestCase):
         self.assertEqual(report['map'], str(self.output/'dynamic/filtered_3cm.pcd'))
         self.assertEqual(report['unfiltered_map'], str(self.output/'backend/optimized_3cm.pcd'))
 
+    def test_dynamic_filter_uses_guard_without_extra_flag(self):
+        self.invoke('--dynamic-filter')
+        command = next(command for command in self.commands if pathlib.Path(command[1]).name == 'filter_dynamic_map.py')
+        self.assertIn('--require-angular-support', command)
+
+    def test_legacy_extrapolation_requires_explicit_request(self):
+        self.invoke('--dynamic-filter', '--dynamic-allow-angular-extrapolation')
+        command = next(command for command in self.commands if pathlib.Path(command[1]).name == 'filter_dynamic_map.py')
+        self.assertNotIn('--require-angular-support', command)
+
     def test_dynamic_setting_without_filter_fails_before_output(self):
-        for arguments in [('--dynamic-angular-support',), ('--dynamic-max-hit-bins', '3')]:
+        for arguments in [('--dynamic-angular-support',), ('--dynamic-max-hit-bins', '3'),
+                          ('--dynamic-allow-angular-extrapolation',)]:
             with self.subTest(arguments=arguments), self.assertRaises(SystemExit):
                 self.invoke(*arguments)
         self.assertFalse(self.output.exists())

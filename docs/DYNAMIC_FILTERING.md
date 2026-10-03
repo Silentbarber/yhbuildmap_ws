@@ -1,6 +1,8 @@
-# 动态过滤第一套候选
+# 动态过滤研究与候选
 
 日期：2026-10-03。状态：四包运行及初步几何检查完成，场景验收进行中。baseline 为 `9a11f2e`；开发分支为 `feature/dynamic-object-filtering`。
+
+2026-10-04 更新：常用批处理入口及 ROS1 建图入口在开启动态过滤时，已默认使用角度保护候选。下面先保留第一版的历史统计和显式复现方法；当前角度保护结果见后续章节。未开启动态过滤时仍使用 baseline。
 
 ## 实现与范围
 
@@ -19,7 +21,7 @@
 
 输出是原 baseline 的精确点子集，没有改变保留点的坐标、强度或轨迹，也没有额外体素化、空间裁剪或删除最后一段数据。可见性由角度邻域近似，仍可能受薄结构、玻璃、位姿残差和部分遮挡影响。长期停留的人或证据不足的动态物体可能保留；只有短暂可见的静态物体可能误删。
 
-## 四包实测
+## 第一版对照
 
 | 包时间 | baseline 点数 | 候选保留点 | 移除点 | 移除比例 | 证据帧 / 全部输出帧 | 初次证据运行耗时 |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -44,12 +46,12 @@
 cd yhbuildmap_ws
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_dynamic_filtering.py \
   --data-root /path/to/existing/buildmap_test_ws \
-  --output-root "$PWD/results/dynamic_delivery"
+  --allow-angular-extrapolation --output-root "$PWD/results/dynamic_delivery"
 ```
 
-脚本先核对 `config/dynamic_filtering_recordings.json` 中四张地图与轨迹哈希，再逐包使用相同参数过滤和审计。`--id 162342` 可只处理第三包。已有同参数证据时，可使用 `--reuse-root`，目录布局为 `<reuse-root>/<id>/visibility_v2/`；复用时检查来源、地图与轨迹哈希、帧数和采样设置。输出目录需尚不存在。
+脚本先核对 `config/dynamic_filtering_recordings.json` 中四张地图与轨迹哈希，再逐包使用相同参数过滤和审计。`--id 162342` 可只处理第三包。已有同参数证据时，可使用 `--reuse-root`，支持当前 `<reuse-root>/<id>/` 和旧 `<reuse-root>/<id>/visibility_v2/` 布局；复用时检查来源、地图与轨迹哈希、帧数和采样设置。输出目录需尚不存在。省略旧版外插参数时，默认生成角度保护候选，不能混用第一版缓存。
 
-直接处理单个前端和后端目录：
+第一版对照的单目录复现：
 
 ```bash
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/filter_dynamic_map.py \
@@ -71,7 +73,7 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_rob
   --calibration pitch25 --rate 0.75 --dynamic-filter
 ```
 
-默认不开启动态过滤，baseline 入口行为保持原样。过滤要求成功完成的优化后轨迹；失败时保留已有 baseline 文件。`pipeline.json` 明确记录最终地图、未过滤地图和检查范围。原轨迹早晚一致性检查仍针对未过滤的后端时间窗口；动态点子集结构检查在 `dynamic/audit/`，二者不能互相替代。
+默认不开启动态过滤，baseline 入口行为保持原样。上面的 `--dynamic-filter` 现在自动开启角度保护；额外传 `--dynamic-allow-angular-extrapolation` 才复现第一版旧模型。过滤要求成功完成的优化后轨迹；失败时保留已有 baseline 文件。`pipeline.json` 明确记录最终地图、未过滤地图和检查范围。原轨迹早晚一致性检查仍针对未过滤的后端时间窗口；动态点子集结构检查在 `dynamic/audit/`，二者不能互相替代。
 
 ## 产物与检查
 
@@ -109,7 +111,7 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_dynamic_fi
   --require-angular-support --output-root "$PWD/results/dynamic_angular_support"
 ```
 
-开启这一检查后必须重新采集证据，不能复用第一版未检查角度包围的计数。缓存检查会拒绝混用。第一版过滤默认与复现入口继续保留，角度保护候选单独生成并待场景确认。
+开启这一检查后必须重新采集证据，不能复用第一版未检查角度包围的计数。缓存检查会拒绝混用。常用入口已默认开启该检查；第一版仅通过显式旧版参数或低层脚本复现，历史结果仍保留。角度保护候选仍待场景确认。
 
 四包已经重新计算全部采样帧的证据，参数和采样帧与第一版一致，只增加角度包围检查：
 
@@ -226,11 +228,11 @@ done
 ```bash
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_robust_mapping.py \
   --bag /path/to/new_recording.bag --calibration pitch25 --rate .75 \
-  --dynamic-filter --dynamic-angular-support \
+  --dynamic-filter \
   --output-dir "$PWD/results/new_dynamic_run"
 ```
 
-`--calibration` 仍需匹配实际录制配置。`--dynamic-max-hit-bins 1` 可追加为保守对照；默认是 3。未启用 `--dynamic-filter` 时保持 baseline 行为。动态专用参数在没有过滤开关时被拒绝，且入口禁止要求删除被四个及以上时间段支持的点。CLI 集成测试验证参数传递和输出路径；本轮四包过滤仍复用已有完整前端缓存与固定优化轨迹，没有再次执行整包 ROS 回放。
+`--calibration` 仍需匹配实际录制配置。`--dynamic-max-hit-bins 1` 可追加为保守对照；默认是 3。角度保护已默认开启，原 `--dynamic-angular-support` 仍可显式传入。`--dynamic-allow-angular-extrapolation` 仅用于旧版对照，并与保护开关互斥。未启用 `--dynamic-filter` 时保持 baseline 行为。动态专用参数在没有过滤开关时被拒绝，且入口禁止要求删除被四个及以上时间段支持的点。CLI 集成测试验证参数传递和输出路径；本轮四包过滤仍复用已有完整前端缓存与固定优化轨迹，没有再次执行整包 ROS 回放。
 
 ## 完整帧运动复核
 
@@ -280,3 +282,35 @@ done
 本轮保持四包 baseline 与两套过滤候选 PCD 哈希一致；运动检查尚未反馈到删除策略。后续需结合实际场景确认残留和静态误删，再决定是否使用随设备运动证据补充过滤。
 
 `bash scripts/test_release.sh` 已通过 50 项 Python 测试及 100 轮原生 MID360 输入回归。新增测试包含静止物体可见范围变化、带噪平面扫描、实际刚体位移、设备运动模型、源坐标/分类/原点、窗口选择、缓存篡改及导出索引核对。没有新增整包 ROS 回放。
+
+## 设备随动补充试验
+
+`scripts/filter_sensor_motion.py` 是未合入默认链路的研究工具。它在现有角度保护地图上尝试补充删除：原位置的固定世界匹配距离至少 10 cm，实际设备运动预测的位置有 4 cm 内的测量，位置变化至少 10 cm，且实测射线在原位置后方至少 10 cm、具有方向包围支持。遮挡和空方向不计为空位。这里只研究离原雷达位置 0.35–1.5 m、最多一个命中时间段的保留点，不裁剪交付地图。
+
+检查全部捕获输出帧的位姿关联，按至少 0.3 s 选择扫描；使用约 0.6 / 1.2 / 1.8 s 间隔的源扫描作设备随动对照。要求至少三个不同 0.5 s 时间段投票、跨度至少 1 s，这些时间段不意味着统计上完全独立。长期支持点受保护；工具也会拒绝已删除 `hit_bins >= 4` 点的父地图。多帧计数不等于语义动态标签。
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/filter_sensor_motion.py \
+  /path/to/frontend /path/to/coverage_geometry_v5 \
+  --visibility-dir /path/to/angular_guard/162744 \
+  --output-dir "$PWD/results/sensor_motion_trial"
+```
+
+四包完整缓存试验在本机 `results/dynamic_filtering/sensor_motion_v1/<id>/`：
+
+| 包 | 全部源帧 / 选中帧 | 累计随动匹配 | 射线确认的累计匹配 | 有投票点数 | 新增删除 | 耗时 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 10-01 21:52:47 | 2253 / 633 | 2227 | 5 | 5 | 0 | 20.7 s |
+| 10-02 16:21:02 | 1261 / 355 | 3990 | 14 | 14 | 0 | 16.3 s |
+| 10-02 16:23:42 | 2387 / 670 | 2545 | 3 | 3 | 0 | 25.3 s |
+| 10-02 16:27:44 | 879 / 247 | 2717 | 4 | 4 | 0 | 10.1 s |
+
+累计匹配会重复统计点与源/目标对，不能称为物体数或检出率。所有得到射线确认的点都只有一个投票时间段，没有持续证据。因此四张输出的保留/移除 PCD 都与原角度保护候选逐字节相同；没有通过放宽门槛制造新增删除。峰值 RSS 约 453–505 MiB，试验产物约 44.4 MiB，没有重复录制或保存整包扫描。这个结果只说明该补充规则在当前设置下未改善四包，不代表已经没有动态残留。
+
+## 默认入口检查
+
+ROS1 入口现在只需 `--dynamic-filter` 即启用角度保护。四包批处理也默认启用；要回放历史第一版，使用 `--allow-angular-extrapolation`。原显式保护参数继续兼容，低层 `filter_dynamic_map.py` 的实验默认保持原样。
+
+本机 `results/dynamic_filtering/default_entry_validation.json` 记录了真实四包批处理默认参数的缓存复现：四张保留/移除 PCD SHA256 均与当前角度保护候选一致，精确分区审计通过。临时输出已清理，原地图和缓存不变。这里验证了批处理实际运行和 ROS1 参数传递；没有新增四包整段 ROS 回放，也没有完成逐对象人工验收。
+
+本轮 `bash scripts/test_release.sh` 通过 65 项 Python 测试及 100 轮原生 MID360 输入回归，全部命令行帮助入口通过。新增测试覆盖设备随动与实际空位联合证据、遮挡与缺失方向、重复命中保护、外来轨迹拒绝，以及批处理和 ROS1 默认参数传递。加强父地图掩码检查的测试样本后，设备随动模块的 11 项测试再次通过。这些检查证明实现和数据关联符合已定义规则，不能代替真实场景动态物体与静态结构验收。

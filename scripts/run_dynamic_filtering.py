@@ -17,11 +17,15 @@ def main():
                         help='Existing experiment root matching the checked baseline inventory')
     parser.add_argument('--output-root',type=pathlib.Path,required=True)
     parser.add_argument('--reuse-root',type=pathlib.Path,
-                        help='Optional prior evidence root: <root>/<id>/visibility_v2')
+                        help='Prior evidence root: <root>/<id>/; legacy nested visibility_v2 also accepted')
     parser.add_argument('--id',choices=['215247','162102','162342','162744'],action='append')
-    parser.add_argument('--require-angular-support',action='store_true',
-                        help='Use measured-ray triangle support for conservative visibility evidence')
+    angular=parser.add_mutually_exclusive_group()
+    angular.add_argument('--require-angular-support',action='store_true',
+                        help='Use measured-ray triangle support; already enabled by default')
+    angular.add_argument('--allow-angular-extrapolation',action='store_true',
+                        help='Experimental legacy comparison: disable triangle support')
     args=parser.parse_args()
+    args.require_angular_support=not args.allow_angular_extrapolation
     records=json.loads((ROOT/'config/dynamic_filtering_recordings.json').read_text())['recordings']
     selected=[r for r in records if not args.id or r['id'] in args.id]
     for record in selected:
@@ -41,7 +45,10 @@ def main():
         if args.require_angular_support:
             command+=['--require-angular-support']
         if args.reuse_root:
-            command+=['--reuse-evidence',str(args.reuse_root/record['id']/'visibility_v2')]
+            reuse=args.reuse_root/record['id']
+            if not (reuse/'report.json').exists():
+                reuse=reuse/'visibility_v2'
+            command+=['--reuse-evidence',str(reuse)]
         subprocess.run(command,check=True)
         audit=[sys.executable,str(ROOT/'scripts/audit_dynamic_filter.py'),
                str(backend/'optimized_3cm.pcd'),str(output)]
