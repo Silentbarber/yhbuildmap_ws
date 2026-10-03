@@ -31,4 +31,11 @@ Release date: 2026-10-03. Repository: https://github.com/Silentbarber/yhbuildmap
 
 The accepted backend is offline. Building a production live localization or loop-correction system requires further work; this release does not claim that functionality.
 
+## Dynamic Filtering Development Branch
+
+- Added `filter_dynamic_map.py`: experimental measured-ray visibility votes on the fixed baseline map. Uses SciPy cKDTree and Open3D PCD parsing; no Removert, ERASOR or Dynablox source is incorporated.
+- Added structural subset audits, a four-recording runner, synthetic geometry/CLI regressions and an optional `--dynamic-filter` pipeline stage. Default baseline estimation and mapping remain unchanged.
+- Four candidate maps and the baseline/removed-point web views are delivered locally. The published code includes the existing Open3D PCD viewer; the local web catalog and building data are not distributed with this repository.
+- The filter is offline and experimental. It identifies temporal inconsistency, not semantic motion ground truth. Current parameters and limits are recorded in `docs/DYNAMIC_FILTERING.md`.
+
 No raw bags, building maps, captured scan arrays, credentials, machine-specific output paths or other algorithm checkouts are included.

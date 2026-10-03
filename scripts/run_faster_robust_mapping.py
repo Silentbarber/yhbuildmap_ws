@@ -24,6 +24,8 @@ def main():
                         help='Experimental: can lose tracking after long weak returns; not a product default')
     parser.add_argument('--experimental-raw-scan-end', action='store_true',
                         help='Experimental: worsened temporal consistency in the two weak-return bags')
+    parser.add_argument('--dynamic-filter', action='store_true',
+                        help='Experimental offline visibility cleaning after optimized map reconstruction')
     args = parser.parse_args()
     if not 0 < args.rate <= 2:
         parser.error('rate must be in (0, 2]')
@@ -71,6 +73,18 @@ def main():
     if process.returncode and backend_report.get('status') != 'no_validated_loop_constraints':
         raise RuntimeError('Backend failed; inspect its logs and candidates before using any output')
     map_path = backend / 'optimized_3cm.pcd' if process.returncode == 0 else pathlib.Path(evaluation['primary_map'])
+    unfiltered_map = map_path
+    dynamic_report = None
+    if args.dynamic_filter:
+        if process.returncode != 0:
+            raise RuntimeError('Dynamic filtering requires the completed backend trajectory; baseline map remains available')
+        dynamic = output / 'dynamic'
+        run('filter_dynamic_map.py', frontend, backend, '--frame-step', .3, '--angle-deg', .7,
+            '--max-hit-bins', 3, '--output-dir', dynamic)
+        dynamic_report = json.loads((dynamic / 'report.json').read_text())
+        run('audit_dynamic_filter.py', unfiltered_map, dynamic)
+        dynamic_report['structural_audit'] = json.loads((dynamic / 'audit/report.json').read_text())
+        map_path = dynamic / 'filtered_3cm.pcd'
     validation = output / 'validation'
     map_directory = backend if process.returncode == 0 else frontend / 'maps'
     arguments = ['--output', validation]
@@ -84,6 +98,8 @@ def main():
                   backend_profile=args.backend_profile,
                   all_estimator_output_frames_retained=True, no_foreign_trajectory=True,
                   backend_mode='offline after ROS1 replay; does not correct live frontend outputs',
+                  dynamic_filter=dynamic_report, unfiltered_map=str(unfiltered_map),
+                  validation_scope='Unfiltered baseline temporal alignment; filtered subset structure audited separately when enabled',
                   absolute_accuracy='not measured without external ground truth')
     (output / 'pipeline.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))
