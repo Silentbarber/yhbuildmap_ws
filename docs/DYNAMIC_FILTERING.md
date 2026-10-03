@@ -134,3 +134,33 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_dynamic_fi
 ```
 
 该审计仅读取第一版候选与实际扫描，输出统计，不修改地图。合成测试检查包围、单侧、共线、直接射线、顺序反转、端点支持不变，以及混用缓存拒绝。
+
+## 时间区域审计
+
+为了区分“地图点被判为时间不一致”与“实际扫描中只在短时间出现”，新增 `scripts/audit_dynamic_regions.py`。它在四个包的固定优化坐标中自动选择三个移除候选区域、持续支持的几何候选，并对第三包的 `reference_11_plane_1_patch_14` 单独保留一个待确认区域。审计读取全部捕获输出帧，使用 Livox 外参得到每帧雷达原点，并将局部扫描点按 5 cm 最近邻关联到 baseline 点。
+
+每个区域输出 `frames.csv`、`frames.json`、`comparison.png`、`time_profile.png` 和用于复核的源索引二进制文件。`frames.csv` 包含源 chunk、chunk 内帧号、优化时间、保留/移除/第一版恢复/未关联计数、局部平面 p95 残差；`frames.json` 还包含源扫描点数和雷达原点。未关联并不代表动态，局部最近邻也不是精确体素 lineage 或语义标签。
+
+四包均已完成该审计，结果位于现有实验根目录的 `results/dynamic_filtering/temporal_review/<id>/`。已观察到的候选区域摘要如下：
+
+| 包 | 自动候选区域 | 每个区域的移除点 | 结论边界 |
+| --- | --- | ---: | --- |
+| 10-01 21:52:47 | 3 个候选 | 2,935、1,767、7,692 | 计数在时间上间歇出现，仍需查看实际物体 |
+| 10-02 16:21:02 | 3 个候选 | 742、2,295、3,254 | 计数在时间上间歇出现，仍需查看实际物体 |
+| 10-02 16:23:42 | 3 个候选 + patch 14 | 728、1,119、3,738；patch 14 为 1,402 | patch 14 集中在约 222.5–226.8 s，仍未确认语义类别 |
+| 10-02 16:27:44 | 3 个候选 | 1,047、2,061、2,975 | 计数在时间上间歇出现，仍需查看实际物体 |
+
+这些区域是复核入口和时间证据，不是动态物体真值。固定几何控制区域的移除量很低或为零，但局部 PCA/平面候选不等于人工确认的墙面、门框或柱子。复现全部四包审计：
+
+```bash
+for id in 215247 162102 162342 162744; do
+  OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_dynamic_regions.py \
+    --data-root /path/to/existing/buildmap_test_ws \
+    --candidate-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/angular_guard \
+    --first-candidate-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/delivery \
+    --output-root /path/to/existing/buildmap_test_ws/results/dynamic_filtering/temporal_review \
+    --id "$id"
+done
+```
+
+审计不会修改四张交付 PCD，也不会为了改善截图删除局部区域。它的目的是把用户肉眼检查定位到具体时间段和源帧。

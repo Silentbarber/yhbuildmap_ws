@@ -16,3 +16,4 @@ export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1
 /usr/bin/python3 scripts/run_dynamic_filtering.py --help >/dev/null
 /usr/bin/python3 scripts/audit_dynamic_filter.py --help >/dev/null
 /usr/bin/python3 scripts/audit_angular_visibility.py --help >/dev/null
+/usr/bin/python3 scripts/audit_dynamic_regions.py --help >/dev/null
