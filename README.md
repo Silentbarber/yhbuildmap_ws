@@ -6,7 +6,7 @@
 
 `scripts/audit_ray_footprint.py` 可重算全部已删除点及保留控制点的原始采样证据，检查三条实测支撑射线的物理间距，并对照固定几何样本。四包间距审计没有提供足够证据替换当前候选，因此该工具只生成诊断数据，不修改地图。
 
-新的 ROS1 捕获会保留 Livox 点时间；在完成带 `point_time_ms` 的新缓存验证后，可通过 `--dynamic-point-time-groups-ms 5`（或批处理的 `--point-time-groups-ms 5`）试验逐点雷达原点插值。该开关要求完整点时间数组，默认关闭，不改变现有四包候选。
+新的 ROS1 捕获会保留 Livox 点时间；在带 `point_time_ms` 的第一包缓存上已验证，可通过 `--dynamic-point-time-groups-ms 5`（或批处理的 `--point-time-groups-ms 5`）试验逐点雷达原点插值。该开关要求完整点时间数组，默认关闭，不改变现有四包候选；其余三包只有在重新捕获或取得带点时间的缓存后才能运行这项实验。
 
 ## 算法与处理流程
 

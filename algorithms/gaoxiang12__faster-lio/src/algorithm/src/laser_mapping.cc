@@ -970,6 +970,10 @@ void LaserMapping::PointBodyToWorld(const PointType *pi, PointType *const po) {
     po->y = p_global(1);
     po->z = p_global(2);
     po->intensity = pi->intensity;
+    // Preserve Livox scan-start offset (milliseconds) through world publication.
+    // Undistortion changes XYZ only; the dynamic-filter capture uses this field
+    // to recover emission-time ray origins after the frame-end transform.
+    po->curvature = pi->curvature;
 }
 
 void LaserMapping::PointBodyToWorld(const common::V3F &pi, PointType *const po) {

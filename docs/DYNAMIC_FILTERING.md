@@ -373,7 +373,7 @@ ROS1 捕获器现在会从输出 `PointCloud2` 保存 PCL 的 `curvature`（或�
 
 ## 逐点雷达原点实验入口
 
-过滤器支持显式的 `--point-time-groups-ms 0.5..20`。它要求每个捕获归档都有与 `lengths` 完全一致的 `point_time_ms`，把点偏移换算为绝对时间，在优化轨迹上做平移线性插值和旋转 SLERP，并将 Livox 外参杆臂转换到世界坐标。每个短时间组用组内中位雷达原点执行现有 `ray_evidence`；组间命中优先于自由空间，少于三条回波的组保持未知。该实现是可审计的近似，不能把 5 ms 分组当成逐点真值。
+过滤器支持显式的 `--point-time-groups-ms 0.5..20`。它要求每个捕获归档都有与 `lengths` 完全一致的 `point_time_ms`，把点偏移换算为绝对时间，在优化轨迹上做平移线性插值和旋转 SLERP，并将 Livox 外参杆臂转换到世界坐标。短时间组随后按时间顺序合并为最多 4 个连续段，每段用组内中位雷达原点执行现有 `ray_evidence`；组间命中优先于自由空间，少于三条回波的组保持未知。这个上限用于控制 60 万级地图的重复空间查询；它是可审计的近似，不能把 5 ms 分组或中位原点当成逐点真值。
 
 ROS1 Faster-LIO 入口：
 
@@ -384,7 +384,7 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_rob
   --output-dir "$PWD/results/point_time_dynamic_run"
 ```
 
-批处理入口对应 `scripts/run_dynamic_filtering.py --point-time-groups-ms 5`。默认值为 0，关闭该实验；没有完整 `point_time_ms` 的旧缓存会在建立输出目录前拒绝。当前四包旧缓存均没有该数组，因此本轮没有生成新的逐点原点 PCD，也没有改变 `angular_guard` 候选。合成 CLI、时间插值、组内原点和缺失字段测试已通过；真实四包逐点入口仍需新的 ROS1 捕获。
+批处理入口对应 `scripts/run_dynamic_filtering.py --point-time-groups-ms 5`。默认值为 0，关闭该实验；没有完整 `point_time_ms` 的旧缓存会在建立输出目录前拒绝。第一包新捕获的实验结果位于 `results/point_time_capture_v2/215247/point_time_dynamic_v2/`，生成了独立的 `filtered_3cm.pcd`、`removed_3cm.pcd`、`point_evidence.npz` 和 `report.json`，不覆盖 `angular_guard` 候选。其余三包目前仍只有旧缓存，因此不能伪造逐点原点 PCD。合成 CLI、时间插值、组内原点和缺失字段测试已通过；四包最终采用哪一版仍需真实场景复核。
 
 ```bash
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_footprint.py \

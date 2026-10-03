@@ -57,3 +57,18 @@ def grouped_origins(frame_end, point_time_ms, trajectory, rotations, extrinsic_t
         ids = np.flatnonzero(groups == label)
         grouped.append((ids, np.median(origins[ids], axis=0), float(np.median(times[ids]))))
     return grouped
+
+
+def coalesce_origin_groups(groups, max_groups=4):
+    """Merge adjacent short groups to bound repeated map queries."""
+    if not 1 <= max_groups <= 8:
+        raise ValueError('Maximum origin groups must be between 1 and 8')
+    if len(groups) <= max_groups:
+        return groups
+    merged = []
+    for partition in np.array_split(np.arange(len(groups)), max_groups):
+        indices = np.concatenate([groups[int(index)][0] for index in partition])
+        origins = np.vstack([groups[int(index)][1] for index in partition])
+        times = np.asarray([groups[int(index)][2] for index in partition])
+        merged.append((indices, np.median(origins, axis=0), float(np.median(times))))
+    return merged

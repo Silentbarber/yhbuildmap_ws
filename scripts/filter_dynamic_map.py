@@ -257,6 +257,7 @@ def main():
     first_hit, last_hit = first_free.copy(), last_free.copy()
     start, selected, total_frames, last_selected = started, 0, 0, -np.inf
     rows = []
+    point_time_skipped = 0
     reference = float(optimized[0, 0])
     map_xyz = points[:, :3].astype(np.float64)
     for filename in cap['temporal_raw']:
@@ -272,6 +273,7 @@ def main():
                     continue
                 last_selected = stamp
                 frame = cloud[cuts[j]:cuts[j + 1]]
+                group = int((stamp - reference) / args.evidence_bin)
                 point_times = None
                 groups = []
                 if args.point_time_groups_ms:
@@ -283,12 +285,25 @@ def main():
                 corrected, origin = correct_scan(frame, original[old, 1:4], original_rotation[old],
                     optimized[new, 1:4], optimized_rotation[new], extrinsic_t)
                 if point_times is not None:
-                    from deskew_ray_origin import grouped_origins
-                    groups = grouped_origins(stamp, point_times, optimized, optimized_rotation, extrinsic_t,
-                                             args.point_time_groups_ms)
+                    from deskew_ray_origin import coalesce_origin_groups, grouped_origins
+                    try:
+                        groups = grouped_origins(stamp, point_times, optimized, optimized_rotation, extrinsic_t,
+                                                 args.point_time_groups_ms)
+                    except ValueError as error:
+                        if 'outside the optimized trajectory' not in str(error):
+                            raise
+                        # The first estimator output can start after scan-start.
+                        # Missing pose support is unknown; do not fall back to a
+                        # frame-end ray because that would hide the uncertainty.
+                        point_time_skipped += 1
+                        selected += 1
+                        rows.append(dict(stamp=float(stamp), elapsed_s=float(stamp - reference),
+                            candidates=0, hits=0, free=0, bin=group, point_time_skipped=1,
+                            point_time_groups=0))
+                        continue
+                    groups = coalesce_origin_groups(groups, max_groups=4)
                 distances = np.linalg.norm(map_xyz - origin, axis=1)
                 candidates = np.flatnonzero((distances > .35) & (distances <= args.max_range))
-                group = int((stamp - reference) / args.evidence_bin)
                 hit_count = free_count = 0
                 for offset in range(0, len(candidates), 150000):
                     subset = candidates[offset:offset + 150000]
@@ -316,7 +331,7 @@ def main():
                 selected += 1
                 rows.append(dict(stamp=float(stamp), elapsed_s=float(stamp - reference),
                     candidates=len(candidates), hits=hit_count, free=free_count, bin=group,
-                    point_time_groups=len(groups)))
+                    point_time_skipped=0, point_time_groups=len(groups)))
                 if selected % 20 == 0:
                     print('evidence frames {}, elapsed {:.1f}s'.format(selected, time.monotonic()-start), flush=True)
         print('finished {}, scanned {} frames'.format(filename, total_frames), flush=True)
@@ -343,6 +358,7 @@ def main():
         supported_points=int((hit_bins>=4).sum()), supported_points_removed=int(((hit_bins>=4)&removed).sum()),
         hit_bin_quantiles=np.percentile(hit_bins,[0,25,50,75,90,99,100]).tolist(),
         free_bin_quantiles=np.percentile(free_bins,[0,25,50,75,90,99,100]).tolist(),
+        point_time_skipped_frames=point_time_skipped,
         settings={key:value for key,value in vars(args).items() if key not in ('frontend','backend','output_dir','reuse_evidence')},
         wall_seconds=time.monotonic()-start, peak_rss_mb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024,
         evidence_acquisition_wall_seconds=acquisition_wall_seconds,

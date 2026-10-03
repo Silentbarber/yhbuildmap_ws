@@ -7,7 +7,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-from deskew_ray_origin import grouped_origins, interpolate_pose, point_absolute_times, point_origins
+from deskew_ray_origin import coalesce_origin_groups, grouped_origins, interpolate_pose, point_absolute_times, point_origins
 
 
 class DeskewRayOriginTest(unittest.TestCase):
@@ -36,6 +36,14 @@ class DeskewRayOriginTest(unittest.TestCase):
             point_origins(12.1, [0., 100.], self.trajectory, self.rotations, [0., 0., 0.])
         with self.assertRaisesRegex(ValueError, '250'):
             point_absolute_times(12., [0., 251.])
+
+    def test_origin_groups_are_coalesced_in_time_order(self):
+        groups = grouped_origins(12., np.arange(0., 100., 5.), self.trajectory,
+                                 self.rotations, [0., 0., 0.], group_ms=5.)
+        merged = coalesce_origin_groups(groups, max_groups=4)
+        self.assertEqual(len(merged), 4)
+        self.assertEqual(sum(len(item[0]) for item in merged), 20)
+        self.assertTrue(all(merged[i][2] < merged[i+1][2] for i in range(3)))
 
 
 if __name__ == '__main__':
