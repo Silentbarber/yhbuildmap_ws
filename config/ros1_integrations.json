@@ -1,0 +1,11 @@
+{
+  "03": {
+    "repo": "gaoxiang12/faster-lio",
+    "package": "faster_lio",
+    "launch": "handheld_mid360.launch",
+    "cloud_topic": "/cloud_registered",
+    "odom_topic": "/Odometry",
+    "cloud_frame": "camera_init",
+    "imu_units": "upstream_normalization"
+  }
+}

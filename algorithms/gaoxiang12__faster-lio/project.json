@@ -1,0 +1,13 @@
+{
+  "id": "03",
+  "name": "Faster-LIO handheld ROS1 adaptation",
+  "repo": "gaoxiang12/faster-lio",
+  "commit": "8038fbac95283708fe2aa30658b7e116a7ace6d8",
+  "commit_url": "https://github.com/gaoxiang12/faster-lio/commit/8038fbac95283708fe2aa30658b7e116a7ace6d8",
+  "archive_sha256": "7417200b4f841bca34c19c245b24349c9fa4b775ea4f734f75e38b5413d43cd6",
+  "workspace": "algorithms/gaoxiang12__faster-lio",
+  "adapted_source": "algorithms/gaoxiang12__faster-lio/src/algorithm",
+  "license": "GPLv2; see the preserved upstream LICENSE",
+  "release_date": "2026-10-03",
+  "backend_profile": "observation_geometry"
+}

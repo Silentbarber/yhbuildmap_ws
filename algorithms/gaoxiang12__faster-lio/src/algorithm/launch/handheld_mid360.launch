@@ -1,0 +1,15 @@
+<launch>
+  <arg name="trace_path" default="" />
+  <arg name="config" default="$(find faster_lio)/config/handheld_mid360.yaml" />
+  <arg name="guard_override" default="config" />
+  <arg name="raw_end_override" default="config" />
+  <param name="diagnostic/state_trace_path" value="$(arg trace_path)" />
+  <param name="use_sim_time" value="true" />
+  <rosparam command="load" file="$(arg config)" />
+  <param if="$(eval arg('guard_override') != 'config')"
+         name="robustness/guard_weak_observations" type="bool" value="$(arg guard_override)" />
+  <param if="$(eval arg('raw_end_override') != 'config')"
+         name="robustness/use_raw_scan_end" type="bool" value="$(arg raw_end_override)" />
+  <node pkg="livox_pointcloud2_to_custommsg" type="pointcloud2_to_custommsg" name="mid360_bridge" output="screen" />
+  <node pkg="faster_lio" type="run_mapping_online" name="faster_lio_mapping" output="screen" required="true" />
+</launch>

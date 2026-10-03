@@ -1,0 +1,38 @@
+common:
+  lid_topic: /livox/lidar_custom
+  imu_topic: /livox/imu
+  time_sync_en: false
+preprocess:
+  lidar_type: 1
+  scan_line: 4
+  blind: 0.35
+  time_scale: 0.000001
+mapping:
+  acc_cov: 0.1
+  gyr_cov: 0.01
+  b_acc_cov: 0.0001
+  b_gyr_cov: 0.0001
+  fov_degree: 360
+  det_range: 100.0
+  extrinsic_est_en: false
+  extrinsic_T: [-0.011, -0.02329, 0.04412]
+  extrinsic_R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+publish:
+  path_publish_en: true
+  scan_publish_en: true
+  scan_effect_pub_en: false
+  dense_publish_en: true
+  scan_bodyframe_pub_en: false
+path_save_en: false
+pcd_save:
+  pcd_save_en: false
+  interval: -1
+feature_extract_enable: false
+point_filter_num: 1
+max_iteration: 5
+filter_size_surf: 0.1
+filter_size_map: 0.1
+cube_side_length: 100
+ivox_grid_resolution: 0.2
+ivox_nearby_type: 18
+esti_plane_threshold: 0.1

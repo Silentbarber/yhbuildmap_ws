@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>livox_pointcloud2_to_custommsg</name>
+  <version>0.1.0</version>
+  <description>PointCloud2 to Livox CustomMsg bridge for recorded MID360 bags.</description>
+  <maintainer email="noreply@example.com">mapping</maintainer>
+  <license>BSD-3-Clause</license>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>roscpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>livox_ros_driver</depend>
+  <export/>
+</package>

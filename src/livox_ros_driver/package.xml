@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>livox_ros_driver</name>
+  <version>2.0.0</version>
+  <description>Livox CustomMsg/CustomPoint interfaces for ROS1 bag replay; no hardware driver.</description>
+  <maintainer email="dev@livoxtech.com">Livox Dev Team</maintainer>
+  <author email="dev@livoxtech.com">Livox Dev Team</author>
+  <license>MIT</license>
+  <url type="repository">https://github.com/Livox-SDK/livox_ros_driver</url>
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>message_generation</build_depend>
+  <depend>std_msgs</depend>
+  <exec_depend>message_runtime</exec_depend>
+  <export/>
+</package>

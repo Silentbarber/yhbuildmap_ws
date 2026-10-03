@@ -1,0 +1,10 @@
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.cc text eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.yaml text eol=lf
+# Preserve inherited source bytes, including upstream CRLF line endings.
+algorithms/gaoxiang12__faster-lio/src/algorithm/** -text
+src/livox_ros_driver/msg/** -text
