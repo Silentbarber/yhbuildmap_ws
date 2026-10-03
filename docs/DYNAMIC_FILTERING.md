@@ -367,6 +367,10 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_foot
 
 这些是相邻帧末原点的位移，既不是实际逐点原点误差，也不是扫描内部运动的真值或误删率。第四包的运动尺度说明，只收紧 2–5 cm 间距并不能修正共有原点的近似。下一步应研究从 bag 的点时间与完整 IMU 运动恢复逐点射线原点，并与固定 baseline 保持坐标一致；不能根据这个表断定所有当前删除都错误。缓存不足以直接做这项修正，需先验证 raw 点时间、去畸变与外参的关联，再决定局部重建或增加专用捕获格式。
 
+原始第一包进一步审计确认 `/livox/lidar` 的 `timestamp` 字段是 `FLOAT64` 绝对纳秒时间戳：2,261 帧、45,206,016 个点，时间戳全部有效；相对消息头的点时间范围为 0–105.208 ms，扫描持续时间中位数为 100.180 ms，消息头间隔约 100 ms。`scripts/audit_livox_point_timing.py` 只读取 bag，不复制或修改数据。该结果使逐点原点修正具备输入依据，但尚未证明估计器发布的世界点仍保留同一时间基准。
+
+ROS1 捕获器现在会从输出 `PointCloud2` 保存 PCL 的 `curvature`（或兼容的 `time` / `timestamp`）字段到每个 `temporal_raw/*.npz` 的 `point_time_ms`，并在 `capture.json` 中记录 `point_time_preserved`。旧缓存没有这个字段，不能伪造补齐；动态过滤继续按原有帧末原点运行，直到完成新的逐点时间捕获与轨迹插值验证。
+
 ```bash
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_footprint.py \
   --data-root /path/to/existing/buildmap_test_ws \
@@ -375,4 +379,4 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_foot
   --output-root "$PWD/results/ray_footprint_trial" --origin-motion-only
 ```
 
-`origin_motion_report.json` 保存上述独立诊断，不改变地图。加入旋转杆臂和长位姿间隔测试后，间距审计模块的 14 项测试再次通过；这个后续诊断不构成原 77 项整套测试已重新运行。
+`origin_motion_report.json` 保存上述独立诊断，不改变地图。加入旋转杆臂和长位姿间隔测试后，间距审计模块的 14 项测试再次通过；随后在加载 ROS1/Livox 工作空间的环境中，完整 `bash scripts/test_release.sh` 通过 84 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。

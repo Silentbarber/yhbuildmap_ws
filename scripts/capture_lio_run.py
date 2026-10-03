@@ -42,6 +42,17 @@ def cloud_array(msg):
     return points
 
 
+def cloud_point_time_ms(msg):
+    """Return the estimator's per-point time field when the output preserves it."""
+    data = cloud_fields(msg)
+    for name in ("curvature", "time", "timestamp"):
+        if name in data.dtype.names:
+            values = np.asarray(data[name], dtype=np.float32).reshape(-1)
+            if len(values) == len(data):
+                return values, name
+    return None, None
+
+
 class Capture:
     def __init__(self, args):
         self.args = args
@@ -55,6 +66,8 @@ class Capture:
         self.parts = []
         self.part_stamps = []
         self.part_lengths = []
+        self.part_times = []
+        self.point_time_fields = set()
         self.window_start = None
         self.window = 0
         self.frames = set()
@@ -117,6 +130,7 @@ class Capture:
     def cloud(self, msg):
         try:
             points = cloud_array(msg)
+            point_times, point_time_field = cloud_point_time_ms(msg)
             with self.lock:
                 if self.finished:
                     return
@@ -135,6 +149,11 @@ class Capture:
                 self.parts.append(points)
                 self.part_stamps.append(stamp)
                 self.part_lengths.append(len(points))
+                self.part_times.append(point_times)
+                if point_times is not None:
+                    self.point_time_fields.add(point_time_field)
+                elif self.point_time_fields:
+                    self.errors.append("point-time field disappeared after it was present")
         except Exception as error:
             with self.lock:
                 self.errors.append(str(error))
@@ -153,12 +172,17 @@ class Capture:
         if not self.parts:
             return
         path = self.root / "temporal_raw" / f"window_{self.window:03d}.npz"
-        np.savez(path, points=np.concatenate(self.parts), stamps=np.array(self.part_stamps),
-                 lengths=np.array(self.part_lengths, dtype=np.int64))
+        payload = dict(points=np.concatenate(self.parts), stamps=np.array(self.part_stamps),
+                       lengths=np.array(self.part_lengths, dtype=np.int64))
+        if (self.part_times and len(self.part_times) == len(self.parts)
+                and all(values is not None for values in self.part_times)):
+            payload["point_time_ms"] = np.concatenate(self.part_times).astype(np.float32)
+        np.savez(path, **payload)
         self.files.append(str(path.relative_to(self.root)))
         self.parts.clear()
         self.part_stamps.clear()
         self.part_lengths.clear()
+        self.part_times.clear()
         self.window += 1
 
     def finish(self):
@@ -173,6 +197,8 @@ class Capture:
             self.frame_file.close()
             report = dict(counts=self.counts, first_stamps=self.first, last_stamps=self.last,
                           cloud_frames=sorted(self.frames), temporal_raw=self.files,
+                          point_time_fields=sorted(self.point_time_fields),
+                          point_time_preserved=bool(self.point_time_fields),
                           errors=self.errors, quality="pending_geometry_validation")
             (self.root / "capture.json").write_text(json.dumps(report, indent=2) + "\n")
 
