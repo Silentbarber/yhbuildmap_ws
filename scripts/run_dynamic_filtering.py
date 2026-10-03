@@ -19,6 +19,8 @@ def main():
     parser.add_argument('--reuse-root',type=pathlib.Path,
                         help='Optional prior evidence root: <root>/<id>/visibility_v2')
     parser.add_argument('--id',choices=['215247','162102','162342','162744'],action='append')
+    parser.add_argument('--require-angular-support',action='store_true',
+                        help='Use measured-ray triangle support for conservative visibility evidence')
     args=parser.parse_args()
     records=json.loads((ROOT/'config/dynamic_filtering_recordings.json').read_text())['recordings']
     selected=[r for r in records if not args.id or r['id'] in args.id]
@@ -36,6 +38,8 @@ def main():
         output=args.output_root/record['id']
         command=[sys.executable,str(ROOT/'scripts/filter_dynamic_map.py'),str(frontend),str(backend),
             '--output-dir',str(output),'--frame-step','.3','--angle-deg','.7','--max-hit-bins','3']
+        if args.require_angular_support:
+            command+=['--require-angular-support']
         if args.reuse_root:
             command+=['--reuse-evidence',str(args.reuse_root/record['id']/'visibility_v2')]
         subprocess.run(command,check=True)

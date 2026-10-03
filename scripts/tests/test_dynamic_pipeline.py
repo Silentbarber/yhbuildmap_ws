@@ -71,6 +71,17 @@ class DynamicPipelineTest(unittest.TestCase):
         self.assertEqual(process.returncode,0,process.stderr)
         self.assertEqual((cached/'filtered_3cm.pcd').read_bytes(),(output/'filtered_3cm.pcd').read_bytes())
 
+        rejected=self.root/'guard_cache_rejected'
+        process=self.run_filter(rejected,'--reuse-evidence',str(output),'--require-angular-support')
+        self.assertNotEqual(process.returncode,0)
+        self.assertIn('Evidence acquisition setting mismatch: require_angular_support',process.stderr)
+        self.assertFalse(rejected.exists())
+
+        guarded=self.root/'guarded'
+        process=self.run_filter(guarded,'--require-angular-support')
+        self.assertEqual(process.returncode,0,process.stderr)
+        np.testing.assert_array_equal(read_map(guarded/'filtered_3cm.pcd'),self.points[1:])
+
     def test_foreign_trajectory_cache_is_rejected_before_outputs(self):
         evidence=self.root/'evidence'
         evidence.mkdir()

@@ -60,8 +60,24 @@ def correct_scan(points, old_position, old_rotation, new_position, new_rotation,
     return corrected, origin
 
 
+def angular_support(query, neighbours, tolerance=1e-14):
+    """Three nearby rays must surround the query in its local tangent plane.
+
+    Collinear neighbours only support an exactly measured ray. Positive
+    projection onto the query keeps the local spherical triangle unambiguous.
+    """
+    projection = np.einsum('nki,ni->nk', neighbours, query)
+    tangent = neighbours - projection[:, :, None] * query[:, None, :]
+    sides = np.einsum('nki,ni->nk', np.cross(tangent, np.roll(tangent, -1, axis=1)), query)
+    same_side = (sides >= -tolerance).all(axis=1) | (sides <= tolerance).all(axis=1)
+    area = np.abs(sides.sum(axis=1))
+    direct = np.linalg.norm(neighbours - query[:, None, :], axis=2).min(axis=1) <= 1e-8
+    return (projection > 0).all(axis=1) & ((same_side & (area > tolerance)) | direct)
+
+
 def ray_evidence(candidate_points, measured_points, origin, angle_deg=.4,
-                 hit_distance=.10, free_margin=.20, range_margin=.02, neighbours=3):
+                 hit_distance=.10, free_margin=.20, range_margin=.02, neighbours=3,
+                 require_angular_support=False):
     """Missing rays and occlusion are unknown, never free-space evidence.
 
     A free vote requires a tight measured-ray cone whose neighbouring returns
@@ -94,6 +110,11 @@ def ray_evidence(candidate_points, measured_points, origin, angle_deg=.4,
     contiguous_depth = np.ptp(returns, axis=1) < (.25 + .01 * target_range)
     free = (available.all(axis=1) & contiguous_depth &
             (returns.min(axis=1) > target_range + margin) & ~hit)
+    if require_angular_support:
+        if neighbours != 3:
+            raise ValueError('Angular triangle support requires exactly three neighbours')
+        candidates = np.flatnonzero(free)
+        free[candidates] &= angular_support(query[candidates], directions[safe_index[candidates]])
     return hit, free
 
 
@@ -121,6 +142,8 @@ def main():
     parser.add_argument('--min-span', type=float, default=6)
     parser.add_argument('--max-hit-bins', type=int, default=3,
                         help='Preserve points repeatedly supported in more independent time bins')
+    parser.add_argument('--require-angular-support', action='store_true',
+                        help='Reject free votes extrapolated outside the three measured ray directions')
     parser.add_argument('--reuse-evidence', type=pathlib.Path,
                         help='Reclassify identical measured evidence without rescanning; source and settings checked')
     args = parser.parse_args()
@@ -169,6 +192,8 @@ def main():
         for key in ['frame_step','evidence_bin','angle_deg','hit_distance','free_margin','max_range']:
             if previous['settings'][key] != getattr(args,key):
                 raise ValueError('Evidence acquisition setting mismatch: '+key)
+        if previous['settings'].get('require_angular_support', False) != args.require_angular_support:
+            raise ValueError('Evidence acquisition setting mismatch: require_angular_support')
         with np.load(args.reuse_evidence / 'point_evidence.npz') as evidence:
             arrays = {key:evidence[key].copy() for key in evidence.files}
         if any(len(array) != len(points) for array in arrays.values()):
@@ -226,7 +251,8 @@ def main():
                 for offset in range(0, len(candidates), 150000):
                     subset = candidates[offset:offset + 150000]
                     hits, frees = ray_evidence(map_xyz[subset], corrected, origin, args.angle_deg,
-                                               args.hit_distance, args.free_margin)
+                                               args.hit_distance, args.free_margin,
+                                               require_angular_support=args.require_angular_support)
                     hi, fi = subset[hits], subset[frees]
                     fresh_hit = hi[last_hit_bin[hi] != group]
                     fresh_free = fi[last_free_bin[fi] != group]

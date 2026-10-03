@@ -54,6 +54,26 @@ class VisibilityTest(unittest.TestCase):
         _,free=ray_evidence(np.array([[3.85,0,0]]),returns(4),np.zeros(3))
         self.assertFalse(free[0])
 
+    def test_guard_rejects_one_sided_returns_beyond_thin_structure(self):
+        scan=np.array([[4.,.004,0],[4,.008,.004],[4,.008,-.004]])
+        point=np.array([[2.,0,0]])
+        _,unguarded=ray_evidence(point,scan,np.zeros(3))
+        hit,guarded=ray_evidence(point,scan,np.zeros(3),require_angular_support=True)
+        self.assertTrue(unguarded[0])
+        self.assertFalse(hit[0])
+        self.assertFalse(guarded[0])
+
+    def test_guard_accepts_surrounded_free_space(self):
+        scan=np.array([[4.,.004,0],[4,-.004,.004],[4,-.004,-.004]])
+        _,free=ray_evidence(np.array([[2.,0,0]]),scan,np.zeros(3),require_angular_support=True)
+        self.assertTrue(free[0])
+
+    def test_guard_does_not_change_endpoint_hits(self):
+        point=np.array([[4.,0,0]])
+        base_hit,_=ray_evidence(point,returns(4),np.zeros(3))
+        guarded_hit,_=ray_evidence(point,returns(4),np.zeros(3),require_angular_support=True)
+        np.testing.assert_array_equal(base_hit,guarded_hit)
+
     def test_votes_need_independent_bins_span_and_low_support(self):
         hits=np.array([0,0,8,0,1],dtype=np.uint16)
         frees=np.array([4,3,4,4,8],dtype=np.uint16)
