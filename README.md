@@ -10,6 +10,8 @@
 
 第一包相同时间分组下的帧末原点/插值原点对照也已完成；两版几何平面抽样损失相同，尚未证明明确结构优势。`scripts/compare_ray_origin_ablation.py` 可检查控制条件并导出仅由原点变化恢复/新增移除的点，详细统计和复现命令见动态过滤文档。
 
+四包整图、优先动态候选和静态控制区域的直接查看入口集中在 [场景验收清单](docs/DYNAMIC_FILTERING_ACCEPTANCE.md)。其中尚未确认的实际物体类别保留为未知，当前动态过滤版本仍待场景反馈。
+
 ## 算法与处理流程
 
 1. 将录包中的 `/livox/lidar` PointCloud2 转换为 Livox CustomMsg，保留点时间并按偏移时间排序；IMU 使用 `/livox/imu`。
