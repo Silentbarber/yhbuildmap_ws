@@ -90,6 +90,15 @@ class VisibilityTest(unittest.TestCase):
         self.assertFalse(hit[0])
         self.assertFalse(free[0])
 
+    def test_group_origin_changes_ray_visibility_at_identical_partition(self):
+        point=np.array([[2.,0,0]])
+        measured=returns(4)
+        _,shared_free=grouped_ray_evidence(point,measured,[(np.arange(3),np.zeros(3),0.)])
+        hit,moving_free=grouped_ray_evidence(point,measured,[(np.arange(3),np.array([0.,1.,0.]),0.)])
+        self.assertTrue(shared_free[0])
+        self.assertFalse(hit[0])
+        self.assertFalse(moving_free[0])
+
     def test_votes_need_independent_bins_span_and_low_support(self):
         hits=np.array([0,0,8,0,1],dtype=np.uint16)
         frees=np.array([4,3,4,4,8],dtype=np.uint16)

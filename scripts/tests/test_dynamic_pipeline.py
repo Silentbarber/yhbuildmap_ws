@@ -117,6 +117,35 @@ class DynamicPipelineTest(unittest.TestCase):
         self.assertIn('no point_time_ms',process.stderr)
         self.assertFalse(output.exists())
 
+    def test_fixed_pose_point_time_origin_control_and_cache_separation(self):
+        interpolation=self.root/'interpolated'
+        control=self.root/'frame_end_control'
+        process=self.run_filter(interpolation,'--point-time-groups-ms','5')
+        self.assertEqual(process.returncode,0,process.stderr)
+        process=self.run_filter(control,'--point-time-groups-ms','5',
+                                '--point-time-origin-mode','frame-end-control')
+        self.assertEqual(process.returncode,0,process.stderr)
+        self.assertEqual((interpolation/'filtered_3cm.pcd').read_bytes(),
+                         (control/'filtered_3cm.pcd').read_bytes())
+        with np.load(interpolation/'point_evidence.npz') as expected, np.load(control/'point_evidence.npz') as actual:
+            for key in expected.files:
+                np.testing.assert_array_equal(expected[key],actual[key])
+        report=json.loads((control/'report.json').read_text())
+        self.assertEqual(report['settings']['point_time_origin_mode'],'frame-end-control')
+        rejected=self.root/'mixed_origin_cache'
+        process=self.run_filter(rejected,'--point-time-groups-ms','5',
+                                '--reuse-evidence',str(control))
+        self.assertNotEqual(process.returncode,0)
+        self.assertIn('setting mismatch: point_time_origin_mode',process.stderr)
+        self.assertFalse(rejected.exists())
+
+    def test_point_time_origin_control_requires_groups_before_outputs(self):
+        output=self.root/'invalid_control'
+        process=self.run_filter(output,'--point-time-origin-mode','frame-end-control')
+        self.assertNotEqual(process.returncode,0)
+        self.assertIn('requires --point-time-groups-ms',process.stderr)
+        self.assertFalse(output.exists())
+
     def test_mismatched_baseline_frame_count_is_rejected(self):
         (self.backend/'report.json').write_text(json.dumps(dict(source_run=str(self.frontend),input_frames=4)))
         output=self.root/'rejected'

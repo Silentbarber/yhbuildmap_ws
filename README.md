@@ -8,6 +8,8 @@
 
 新的 ROS1 捕获会保留 Livox 点时间；在带 `point_time_ms` 的第一包缓存上已验证，可通过 `--dynamic-point-time-groups-ms 5`（或批处理的 `--point-time-groups-ms 5`）试验逐点雷达原点插值。该开关要求完整点时间数组，默认关闭，不改变现有四包候选；其余三包只有在重新捕获或取得带点时间的缓存后才能运行这项实验。
 
+第一包相同时间分组下的帧末原点/插值原点对照也已完成；两版几何平面抽样损失相同，尚未证明明确结构优势。`scripts/compare_ray_origin_ablation.py` 可检查控制条件并导出仅由原点变化恢复/新增移除的点，详细统计和复现命令见动态过滤文档。
+
 ## 算法与处理流程
 
 1. 将录包中的 `/livox/lidar` PointCloud2 转换为 Livox CustomMsg，保留点时间并按偏移时间排序；IMU 使用 `/livox/imu`。

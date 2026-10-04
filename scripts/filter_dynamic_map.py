@@ -162,6 +162,9 @@ def main():
                         help='Preserve points repeatedly supported in more independent time bins')
     parser.add_argument('--point-time-groups-ms', type=float, default=0.,
                         help='Use captured per-point times and interpolated origins in short groups; 0 keeps frame-end origin')
+    parser.add_argument('--point-time-origin-mode', choices=['interpolated', 'frame-end-control'],
+                        default='interpolated',
+                        help='Experimental ablation: preserve time partitions but use the shared frame-end origin')
     parser.add_argument('--require-angular-support', action='store_true',
                         help='Reject free votes extrapolated outside the three measured ray directions')
     parser.add_argument('--reuse-evidence', type=pathlib.Path,
@@ -178,6 +181,8 @@ def main():
         parser.error('At least two bins, ratio .5--1 and span >=2s required')
     if args.point_time_groups_ms and not .5 <= args.point_time_groups_ms <= 20:
         parser.error('Point-time origin groups must be .5--20ms')
+    if args.point_time_origin_mode != 'interpolated' and not args.point_time_groups_ms:
+        parser.error('Point-time origin control requires --point-time-groups-ms')
     frontend, backend = args.frontend.resolve(), args.backend.resolve()
     output = args.output_dir.resolve()
     if output.exists():
@@ -209,6 +214,8 @@ def main():
             raise ValueError('Evidence source mismatch')
         if previous.get('trajectory_sha256') != trajectory_hash:
             raise ValueError('Evidence trajectory mismatch')
+        if previous['settings'].get('point_time_origin_mode', 'interpolated') != args.point_time_origin_mode:
+            raise ValueError('Evidence acquisition setting mismatch: point_time_origin_mode')
         if previous['input_frames'] != report['input_frames']:
             raise ValueError('Evidence frame count mismatch')
         for key in ['frame_step','evidence_bin','angle_deg','hit_distance','free_margin','max_range',
@@ -302,6 +309,8 @@ def main():
                             point_time_groups=0))
                         continue
                     groups = coalesce_origin_groups(groups, max_groups=4)
+                    if args.point_time_origin_mode == 'frame-end-control':
+                        groups = [(indices, origin, time) for indices, _, time in groups]
                 distances = np.linalg.norm(map_xyz - origin, axis=1)
                 candidates = np.flatnonzero((distances > .35) & (distances <= args.max_range))
                 hit_count = free_count = 0

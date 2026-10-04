@@ -23,6 +23,7 @@ export OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1
 /usr/bin/python3 scripts/filter_sensor_motion.py --help >/dev/null
 /usr/bin/python3 scripts/audit_ray_footprint.py --help >/dev/null
 /usr/bin/python3 scripts/audit_livox_point_timing.py --help >/dev/null
+/usr/bin/python3 scripts/compare_ray_origin_ablation.py --help >/dev/null
 /usr/bin/python3 - <<'PY'
 import sys
 sys.path.insert(0, 'scripts')

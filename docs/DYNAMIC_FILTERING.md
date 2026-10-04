@@ -431,3 +431,43 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_rob
 ```
 
 真实实验完成后的 `bash scripts/test_release.sh` 通过 95 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。地图质量仍待实际场景复核，Goal 保持 active。
+
+### 分组与原点修正的对照
+
+把整帧回波分成最多四个时间段，会同时改变邻域回波密度和射线原点。因此第一包从 14,412 点减少到 10,490 点的移除统计，不能全部归因于更准确的原点。低层过滤器新增实验参数 `--point-time-origin-mode frame-end-control`：保留与插值版相同的点时间分组、未知首帧、采样间隔和分类阈值，但每组使用同一个帧末雷达原点。默认模式仍为 `interpolated`；控制参数必须与非零 `--point-time-groups-ms` 一起使用，两种模式的证据缓存不能混用。
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/filter_dynamic_map.py \
+  results/point_time_capture_v2/215247 results/point_time_capture_v2/215247/backend \
+  --output-dir "$PWD/results/point_time_capture_v2/215247/grouped_frame_end_control" \
+  --frame-step .3 --angle-deg .7 --max-hit-bins 3 --require-angular-support \
+  --point-time-groups-ms 5 --point-time-origin-mode frame-end-control
+
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/compare_ray_origin_ablation.py \
+  results/point_time_capture_v2/215247/grouped_frame_end_control \
+  results/point_time_capture_v2/215247/point_time_dynamic_v2 \
+  --output-dir "$PWD/results/point_time_capture_v2/215247/origin_ablation"
+```
+
+比较工具在写输出前校验共同地图与轨迹哈希、来源目录、分类阈值、帧选择和每帧时间组数，重算分类并核对两套 PCD 的精确点子集。输出 `changed_points.npz` 的索引对应固定 baseline；非空差异分别导出 `restored_by_origin.pcd` 和 `newly_removed_by_origin.pcd`，不改变已有地图。报告将几何平面抽样、命中/自由时间段变化和原运行耗时分开记录；恢复点与新增移除点都不是语义标签。这项对照不修改四包默认候选。
+
+第一包完整对照已经运行：相同的 2,253 个输入捕获帧、633 个采样证据帧（其中首帧保持未知）和 113 个时间段；两套来源地图、轨迹、参数及采样表一致。
+
+| 项目 | 相同分组 + 帧末原点 | 相同分组 + 插值原点 |
+| --- | ---: | ---: |
+| 保留点数 | 579000 | 578924 |
+| 移除点数 | 10414 | 10490 |
+| 几何平面抽样移除 / 30719 | 45 | 45 |
+| 实际过滤墙钟时间 | 983.9 s | 974.7 s |
+
+两版共同移除 9,556 点，插值原点恢复 858 点、新增移除 934 点；平面抽样中恢复 1 点、新增移除 1 点。命中时间段计数在 11,519 点上减少、14,937 点上增加；自由时间段计数在 12,620 点上减少、13,350 点上增加。这是射线原点变化的实际影响，并不证明变化后的语义分类更正确。
+
+相对未分组角度保护候选的删除量下降，也出现在保留帧末原点的分组控制中；不能把这个下降解释为原点插值带来的地图质量提升。与未分组旧结果相比，分组、首帧未知处理和新捕获也是变化因素。本轮对照没有提供足够的结构证据替换四包默认候选，不能从两次耗时相近的运行推断性能优势。
+
+本机新增独立三维入口：
+
+- 分组帧末原点控制地图：`http://127.0.0.1:8765/viewer/?map=dynamicOriginControlFiltered215247`
+- 仅原点变化恢复的 858 点：`http://127.0.0.1:8765/viewer/?map=dynamicOriginRestored215247`
+- 仅原点变化新增移除的 934 点：`http://127.0.0.1:8765/viewer/?map=dynamicOriginNewlyRemoved215247`
+
+控制地图及证据约 12.3 MB；差异 PCD、NPZ 和比较报告的文件内容合计约 38 KB，不复制前端扫描缓存。完整回归通过 101 项 Python 测试、100 轮 MID360 输入回归及全部帮助入口。两个恢复/移除差异文件可直接用仓库的 `scripts/view_pcd.py` 查看。新增入口的 4 项桌面/手机检查通过，覆盖正确单图选择、点数、非空画布、旋转像素变化及页面无异常，桌面控制地图另检查三正交视图和切面。原地图、四张默认过滤候选和轨迹保持不变。

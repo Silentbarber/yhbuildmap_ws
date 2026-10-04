@@ -37,5 +37,7 @@ The accepted backend is offline. Building a production live localization or loop
 - Added structural subset audits, a four-recording runner, synthetic geometry/CLI regressions and an optional `--dynamic-filter` pipeline stage. Default baseline estimation and mapping remain unchanged.
 - Four candidate maps and the baseline/removed-point web views are delivered locally. The published code includes the existing Open3D PCD viewer; the local web catalog and building data are not distributed with this repository.
 - The filter is offline and experimental. It identifies temporal inconsistency, not semantic motion ground truth. Current parameters and limits are recorded in `docs/DYNAMIC_FILTERING.md`.
+- Faster-LIO world-point publication preserves curvature timing for new ROS1 captures. Optional point-time ray origins use trajectory interpolation and bounded time groups; the accepted baseline map remains unchanged.
+- Added a grouped frame-end origin control and `compare_ray_origin_ablation.py` to isolate origin changes, reject mixed evidence modes and export changed baseline points for review. The first recording's control did not establish a structural quality improvement.
 
 No raw bags, building maps, captured scan arrays, credentials, machine-specific output paths or other algorithm checkouts are included.
