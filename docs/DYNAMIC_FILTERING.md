@@ -395,3 +395,39 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/audit_ray_foot
 ```
 
 `origin_motion_report.json` 保存上述独立诊断，不改变地图。加入旋转杆臂和长位姿间隔测试后，间距审计模块的 14 项测试再次通过；随后在加载 ROS1/Livox 工作空间的环境中，完整 `bash scripts/test_release.sh` 通过 94 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。
+
+### 第一包真实点时间实验
+
+2026-10-04，修复 `LaserMapping::PointBodyToWorld()` 没有复制 `curvature` 的问题后重新编译并完整回放第一包。新捕获包含 2,253 帧、29,873,222 个输出点，点时间范围约 0.004864–105.207809 ms；输入 2,261 个雷达消息和 45,213 个 IMU 消息全部通过完整性检查。第一次无效捕获的时间值全为零，已清理，未用于地图评估。
+
+新后端地图的 SHA256 与原 baseline 完全相同，2,253 行优化轨迹的数值最大差异为 4.44e-15；轨迹文本哈希不同，因此比较额外检查数值，不混用两套轨迹的证据缓存。该实验只修改射线原点证据，不修改地图点坐标。
+
+| 项目 | 角度保护候选 | 点时间原点候选 |
+| --- | ---: | ---: |
+| 固定 baseline 点数 | 589414 | 589414 |
+| 保留点数 | 575002 | 578924 |
+| 移除点数 | 14412 | 10490 |
+| 几何平面抽样移除 / 30719 | 47 | 45 |
+
+两版共同移除 10,115 点；新候选恢复 4,297 点、新增移除 375 点。第一帧扫描开始时间早于优化轨迹起点，该帧保持未知，报告记录 `point_time_skipped_frames=1`。本次 633 个采样证据帧包含这一个跳过帧，113 个时间段；过滤耗时约 974.7 s，峰值 RSS 516.1 MiB，输出约 12.3 MB（不包含审计图）。新捕获及后端合计约 667 MiB。它仍是离线实验，删除量及平面抽样变化不能证明语义动态检出率或零误删。
+
+新候选通过精确点子集分区审计；未删除具有至少四个命中时间段的点。第一包没有已有人工确认的静态表面标注，几何平面抽样不是静态真值。其余三包没有带点时间的新缓存，当前四张默认角度保护候选继续保留。
+
+本机独立三维入口：
+
+- 保留地图：`http://127.0.0.1:8765/viewer/?map=dynamicPointTimeFiltered215247`
+- 删除点：`http://127.0.0.1:8765/viewer/?map=dynamicPointTimeRemoved215247`
+
+这两个入口完成桌面/手机非空画布、点数、旋转像素变化、无页面异常及单图加载检查，桌面另检查三个正交方向与切面。查看器检查报告在实验根目录 `results/dynamic_filtering/point_time_viewer_validation/report.json`，地图与完整审计在发布仓库的 `results/point_time_capture_v2/215247/point_time_dynamic_v2/`。本机地图和审计产物不随源码上传。
+
+第一包从原 bag 重新运行的命令（生成新输出，不覆盖已有结果）：
+
+```bash
+OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_robust_mapping.py \
+  --bag /path/to/test_1301_2026-10-01-21-52-47.bag \
+  --calibration raw --rate 1 --backend-profile observation_geometry \
+  --dynamic-filter --dynamic-point-time-groups-ms 5 \
+  --output-dir "$PWD/results/point_time_first_bag_rerun"
+```
+
+真实实验完成后的 `bash scripts/test_release.sh` 通过 95 项 Python 测试、100 轮原生 MID360 输入回归和全部帮助入口。地图质量仍待实际场景复核，Goal 保持 active。
