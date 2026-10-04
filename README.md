@@ -2,7 +2,7 @@
 
 面向 Livox MID360 手持建图的 ROS1 Faster-LIO 适配与离线地图优化。这是 2026-10-03 在四个录制包上验证、经用户肉眼验收的版本，默认后端为 `observation_geometry`。
 
-当前 `feature/dynamic-object-filtering` 分支开展动态物体过滤研究。baseline 固定为 `handheld-mid360-2026-10-03` / `9a11f2e`；离线可见性过滤及角度保护候选均完成四包运行，尚待用户场景验收。方法、参数、结果和复现命令见 [动态过滤候选](docs/DYNAMIC_FILTERING.md)，完整目标见 [动态过滤 Goal](docs/DYNAMIC_FILTERING_GOAL.md)。建图入口默认仍运行 baseline；增加 `--dynamic-filter` 现在自动启用射线角度包围保护，原 `--dynamic-angular-support` 仍兼容，`--dynamic-max-hit-bins 1` 可生成保守对照。四包批处理 `run_dynamic_filtering.py` 也默认开启角度保护；旧版外插仅通过明确的实验参数复现。局部三维时间检查工具在 `viewer/temporal.html`。另有设备随动补充研究工具，四包没有得到持续的追加删除证据，未合入默认链路。
+当前 `feature/dynamic-object-filtering` 分支已完成动态过滤研究实现及四包阶段候选交付。baseline 固定为 `handheld-mid360-2026-10-03` / `9a11f2e`；离线可见性过滤及角度保护候选均完成四包运行。方法、参数、结果和复现命令见 [动态过滤候选](docs/DYNAMIC_FILTERING.md)，完整目标见 [动态过滤 Goal](docs/DYNAMIC_FILTERING_GOAL.md)。建图入口默认仍运行 baseline；增加 `--dynamic-filter` 现在自动启用射线角度包围保护，原 `--dynamic-angular-support` 仍兼容，`--dynamic-max-hit-bins 1` 可生成保守对照。四包批处理 `run_dynamic_filtering.py` 也默认开启角度保护；旧版外插仅通过明确的实验参数复现。局部三维时间检查工具在 `viewer/temporal.html`。另有设备随动补充研究工具，四包没有得到持续的追加删除证据，未合入默认链路。
 
 `scripts/audit_ray_footprint.py` 可重算全部已删除点及保留控制点的原始采样证据，检查三条实测支撑射线的物理间距，并对照固定几何样本。四包间距审计没有提供足够证据替换当前候选，因此该工具只生成诊断数据，不修改地图。
 
@@ -10,7 +10,7 @@
 
 第一包相同时间分组下的帧末原点/插值原点对照也已完成；两版几何平面抽样损失相同，尚未证明明确结构优势。`scripts/compare_ray_origin_ablation.py` 可检查控制条件并导出仅由原点变化恢复/新增移除的点，详细统计和复现命令见动态过滤文档。
 
-四包整图、优先动态候选和静态控制区域的直接查看入口集中在 [场景验收清单](docs/DYNAMIC_FILTERING_ACCEPTANCE.md)。其中尚未确认的实际物体类别保留为未知，当前动态过滤版本仍待场景反馈。
+四包整图、优先动态候选和静态控制区域的直接查看入口集中在 [场景复核与交付记录](docs/DYNAMIC_FILTERING_ACCEPTANCE.md)。2026-10-04 用户反馈能看到过滤效果，但无法判断局部实际物体。当前四包 `angular_guard` 固定为阶段交付候选，文件哈希及参数见 [交付清单](config/dynamic_filtering_delivery.json)。实际物体类别未确认的区域保留为未知；此反馈不等于逐对象验收或零误删证明。
 
 ## 算法与处理流程
 

@@ -1,6 +1,6 @@
 # 动态过滤研究与候选
 
-日期：2026-10-03。状态：四包运行及初步几何检查完成，场景验收进行中。baseline 为 `9a11f2e`；开发分支为 `feature/dynamic-object-filtering`。
+日期：2026-10-03，交付更新：2026-10-04。状态：研究实现与四包候选交付完成。baseline 为 `9a11f2e`；开发分支为 `feature/dynamic-object-filtering`。当前选定阶段候选是 `angular_guard`；用户反馈观察到改善，局部实际物体类别仍未知。参数、四张 PCD 哈希与资源统计固定在 `config/dynamic_filtering_delivery.json`，场景复核入口见 `DYNAMIC_FILTERING_ACCEPTANCE.md`。
 
 2026-10-04 更新：常用批处理入口及 ROS1 建图入口在开启动态过滤时，已默认使用角度保护候选。下面先保留第一版的历史统计和显式复现方法；当前角度保护结果见后续章节。未开启动态过滤时仍使用 baseline。
 
@@ -46,7 +46,7 @@
 cd yhbuildmap_ws
 OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_dynamic_filtering.py \
   --data-root /path/to/existing/buildmap_test_ws \
-  --allow-angular-extrapolation --output-root "$PWD/results/dynamic_delivery"
+  --output-root "$PWD/results/dynamic_delivery"
 ```
 
 脚本先核对 `config/dynamic_filtering_recordings.json` 中四张地图与轨迹哈希，再逐包使用相同参数过滤和审计。`--id 162342` 可只处理第三包。已有同参数证据时，可使用 `--reuse-root`，支持当前 `<reuse-root>/<id>/` 和旧 `<reuse-root>/<id>/visibility_v2/` 布局；复用时检查来源、地图与轨迹哈希、帧数和采样设置。输出目录需尚不存在。省略旧版外插参数时，默认生成角度保护候选，不能混用第一版缓存。
@@ -88,7 +88,7 @@ OMP_NUM_THREADS=2 OPENBLAS_NUM_THREADS=1 /usr/bin/python3 scripts/run_faster_rob
 
 本机另保留每包 baseline / filtered / removed 的独立网页入口。完整 3 cm 地图直接渲染，未使用额外预览降采样；四包已完成 16 项桌面/手机非空画布、像素变化、单图加载和页面异常检查，另检查桌面顶/正/侧视及剖切。网页源与本机数据目录属于现有实验工作区；公开源码提供 Open3D 查看工具。
 
-当前候选不能作为已验证的实时动态检测模块或零误删产品保证。Goal 仍保持 active，后续需要逐包确认动态残留和有代表性的静态细节，再决定参数和后续实现。
+当前候选是离线地图清理实现，不能作为已验证的实时动态检测模块或零误删产品保证。研究与候选交付完成；逐对象人工标签不是交付前提。未来若发现具体结构缺口或动态残留，可据失败区域另行改进，不把未测量的语义质量写成已验证。
 
 ## 角度包围检查
 

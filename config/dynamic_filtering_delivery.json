@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-04",
+  "status": "stage_delivery_candidate",
+  "branch": "feature/dynamic-object-filtering",
+  "baseline_commit": "9a11f2ec19575c6b6ca2f8abf99abb0f5452e82e",
+  "baseline_tag": "handheld-mid360-2026-10-03",
+  "candidate": "angular_guard",
+  "data_root": "/home/zjut/workspace/yh/buildmap_test_ws",
+  "output_root_relative_to_data_root": "results/dynamic_filtering/angular_guard",
+  "filtered_file": "filtered_3cm.pcd",
+  "removed_file": "removed_3cm.pcd",
+  "report_file": "report.json",
+  "settings": {
+    "frame_step": 0.3,
+    "evidence_bin": 2,
+    "angle_deg": 0.7,
+    "hit_distance": 0.1,
+    "free_margin": 0.2,
+    "max_range": 20,
+    "min_free_bins": 4,
+    "free_ratio": 0.8,
+    "min_span": 6,
+    "max_hit_bins": 3,
+    "require_angular_support": true
+  },
+  "checks": {
+    "source_cache_sha256_verified": true,
+    "all_frame_timestamp_associations_verified": true,
+    "baseline_map_and_trajectory_sha256_verified": true,
+    "exact_xyzi_partition_verified": true,
+    "hit_bins_at_least_four_protected": true,
+    "total_input_frames": 6780,
+    "candidate_directory_bytes_including_audits": 74385206
+  },
+  "user_feedback": {
+    "text": "这个其实我也看不出来，因为人体运动没有规律的，我感觉你的效果还是有的",
+    "interpretation": "Qualitative perceived improvement; ambiguous local object identities remain unknown.",
+    "semantic_labels_verified": false,
+    "formal_per_object_acceptance": false
+  },
+  "limitations": [
+    "Offline map subset filtering; no real-time dynamic detection claim.",
+    "Removal counts are not semantic precision or recall; static false removals and residual dynamics are not fully labeled.",
+    "Runtime records were collected during concurrent four-recording experiments; no serial speed advantage is established.",
+    "All four source caches are complete; only the first raw bag is currently available locally.",
+    "Public source repository does not include bag data, source caches or PCD artifacts."
+  ],
+  "recordings": [
+    {
+      "id": "215247",
+      "bag": "test_1301_2026-10-01-21-52-47.bag",
+      "input_frames": 2253,
+      "filtered_points": 575002,
+      "removed_points": 14412,
+      "filtered_sha256": "fa8139dac6854d85ff9bbde114d6acd0cb62919eabc192ab249e1fc982fa47aa",
+      "removed_sha256": "519d0b3bb4d092a244643d0cd514c35d6c1a1ea328a0453cb1b3622e85fc66e1",
+      "wall_seconds": 322.5860446919687,
+      "peak_rss_mb": 505.234375,
+      "directory_bytes": 20425929,
+      "viewer_url": "http://127.0.0.1:8765/viewer/?map=dynamicGuardedFiltered215247"
+    },
+    {
+      "id": "162102",
+      "bag": "test_1301_2026-10-02-16-21-02.bag",
+      "input_frames": 1261,
+      "filtered_points": 511128,
+      "removed_points": 6393,
+      "filtered_sha256": "90937d901835dc7bc3e4a61216803ffc17f415ef7202d509576c53ad0b21d9d6",
+      "removed_sha256": "3c2aaf2881255030e64172904f1ad0a587959010924b56cc77cd44bcdca6561e",
+      "wall_seconds": 176.81199740897864,
+      "peak_rss_mb": 496.25390625,
+      "directory_bytes": 16931886,
+      "viewer_url": "http://127.0.0.1:8765/viewer/?map=dynamicGuardedFiltered162102"
+    },
+    {
+      "id": "162342",
+      "bag": "test_1301_2026-10-02-16-23-42.bag",
+      "input_frames": 2387,
+      "filtered_points": 637932,
+      "removed_points": 7467,
+      "filtered_sha256": "59a722b119cd30f722235839f0302dd9b3c70d30e544fd7f0367ada721fd58f4",
+      "removed_sha256": "98217aac6a5e6ee5de700a8fc63bd00b47525754b3cbf022e9c3187a2c45c537",
+      "wall_seconds": 367.3138186080032,
+      "peak_rss_mb": 525.36328125,
+      "directory_bytes": 21266629,
+      "viewer_url": "http://127.0.0.1:8765/viewer/?map=dynamicGuardedFiltered162342"
+    },
+    {
+      "id": "162744",
+      "bag": "test_1301_2026-10-02-16-27-44.bag",
+      "input_frames": 879,
+      "filtered_points": 497206,
+      "removed_points": 6667,
+      "filtered_sha256": "132fb95a62e804988a7123ac92828203326f7090aa88f495bb2aa0f747db9fbe",
+      "removed_sha256": "36967862a0463665dd872d0a06e033b34d5f32b0ee6be56011a85746d5b80cec",
+      "wall_seconds": 122.6298140049912,
+      "peak_rss_mb": 487.7890625,
+      "directory_bytes": 15760762,
+      "viewer_url": "http://127.0.0.1:8765/viewer/?map=dynamicGuardedFiltered162744"
+    }
+  ]
+}
